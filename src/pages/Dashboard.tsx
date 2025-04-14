@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserCheck, UserX, CalendarDays } from "lucide-react";
@@ -9,6 +9,12 @@ import { format } from "date-fns";
 const Dashboard = () => {
   const { students } = useData();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [forceUpdate, setForceUpdate] = useState(0);
+  
+  // Force a re-render when navigating to the dashboard
+  useEffect(() => {
+    setForceUpdate(prev => prev + 1);
+  }, []);
   
   // Format the selected date to match the attendance records format
   const formattedDate = format(selectedDate, "yyyy-MM-dd");
@@ -112,7 +118,7 @@ const Dashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {students.slice(0, 5).map((student) => (
+                    {students.map((student) => (
                       <tr key={student.id} className="border-t border-slate-700">
                         <td className="px-4 py-3">{student.name}</td>
                         <td className="px-4 py-3">{student.usn}</td>
