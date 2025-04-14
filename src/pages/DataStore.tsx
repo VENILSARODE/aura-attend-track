@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Database, Search, UserCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SemesterGroup } from "@/types";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 const DataStore = () => {
   const { students, updateAttendance } = useData();
@@ -21,12 +24,63 @@ const DataStore = () => {
     );
   });
 
+  // Function to extract semester number from class string
+  const getSemesterFromClass = (classStr: string): number => {
+    // Try to extract numbers from the class string
+    const semMatch = classStr.match(/(\d+)(st|nd|rd|th)?(\s+)?(sem|semester)?/i);
+    if (semMatch) {
+      return parseInt(semMatch[1], 10);
+    }
+    
+    // Check for year-based format
+    const yearMatch = classStr.match(/(1st|2nd|3rd|4th)(\s+)?year/i);
+    if (yearMatch) {
+      // Convert year to semester (approximately)
+      switch(yearMatch[1].toLowerCase()) {
+        case '1st': return 2; // 1st year ~ 2nd semester
+        case '2nd': return 4; // 2nd year ~ 4th semester
+        case '3rd': return 6; // 3rd year ~ 6th semester
+        case '4th': return 8; // 4th year ~ 8th semester
+        default: return 1;
+      }
+    }
+    
+    return 1; // Default to 1st semester if no match
+  };
+
+  // Group students by semester
+  const groupStudentsBySemester = (): SemesterGroup[] => {
+    const semesterGroups: SemesterGroup[] = Array.from({ length: 8 }, (_, i) => ({
+      title: `${i + 1}${getSuffixForNumber(i + 1)} Semester`,
+      students: []
+    }));
+
+    filteredStudents.forEach(student => {
+      const semNumber = getSemesterFromClass(student.class);
+      // Ensure semester number is within bounds (1-8)
+      const index = Math.min(Math.max(semNumber - 1, 0), 7);
+      semesterGroups[index].students.push(student);
+    });
+
+    return semesterGroups;
+  };
+
+  // Helper function to get ordinal suffix for numbers
+  const getSuffixForNumber = (num: number): string => {
+    if (num === 1) return 'st';
+    if (num === 2) return 'nd';
+    if (num === 3) return 'rd';
+    return 'th';
+  };
+
+  const semesterGroups = groupStudentsBySemester();
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Data Store</h1>
         <p className="text-muted-foreground">
-          View and manage student attendance records
+          View and manage student attendance records by semester
         </p>
       </div>
 
@@ -57,7 +111,7 @@ const DataStore = () => {
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-xl flex items-center gap-2">
             <Database className="h-5 w-5" />
-            <span>Student Records</span>
+            <span>Student Records by Semester</span>
           </CardTitle>
           <div className="text-sm text-slate-400">
             {filteredStudents.length} {filteredStudents.length === 1 ? "student" : "students"}
@@ -65,71 +119,96 @@ const DataStore = () => {
         </CardHeader>
         <CardContent>
           {filteredStudents.length > 0 ? (
-            <div className="rounded-md border border-slate-700">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-700">
-                      <th className="px-4 py-3 text-left font-medium">Name</th>
-                      <th className="px-4 py-3 text-left font-medium">USN</th>
-                      <th className="px-4 py-3 text-left font-medium">Class</th>
-                      <th className="px-4 py-3 text-left font-medium">Mobile</th>
-                      <th className="px-4 py-3 text-left font-medium">Today's Status</th>
-                      <th className="px-4 py-3 text-left font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredStudents.map((student) => (
-                      <tr key={student.id} className="border-t border-slate-700">
-                        <td className="px-4 py-3">{student.name}</td>
-                        <td className="px-4 py-3">{student.usn}</td>
-                        <td className="px-4 py-3">{student.class}</td>
-                        <td className="px-4 py-3">{student.mobile}</td>
-                        <td className="px-4 py-3">
-                          <div
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                              student.attendance[today] === "present"
-                                ? "bg-green-900/20 text-green-400"
-                                : student.attendance[today] === "absent"
-                                ? "bg-red-900/20 text-red-400"
-                                : "bg-yellow-900/20 text-yellow-400"
-                            }`}
-                          >
-                            {student.attendance[today] === "present"
-                              ? "Present"
-                              : student.attendance[today] === "absent"
-                              ? "Absent"
-                              : "Not Marked"}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-green-500 hover:text-green-400 hover:bg-green-900/20"
-                              onClick={() => updateAttendance(student.id, today, 'present')}
-                              title="Mark as present"
-                            >
-                              <UserCheck className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-900/20"
-                              onClick={() => updateAttendance(student.id, today, 'absent')}
-                              title="Mark as absent"
-                            >
-                              <UserX className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <Tabs defaultValue="1">
+              <TabsList className="grid grid-cols-4 lg:grid-cols-8 mb-4">
+                {semesterGroups.map((group, index) => (
+                  <TabsTrigger 
+                    key={index} 
+                    value={String(index + 1)}
+                    className="relative"
+                  >
+                    {group.title}
+                    {group.students.length > 0 && (
+                      <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+                        {group.students.length}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              
+              {semesterGroups.map((group, index) => (
+                <TabsContent key={index} value={String(index + 1)}>
+                  {group.students.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-slate-700">
+                          <TableHead>Name</TableHead>
+                          <TableHead>USN</TableHead>
+                          <TableHead>Class</TableHead>
+                          <TableHead>Mobile</TableHead>
+                          <TableHead>Today's Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.students.map((student) => (
+                          <TableRow key={student.id} className="border-t border-slate-700">
+                            <TableCell>{student.name}</TableCell>
+                            <TableCell>{student.usn}</TableCell>
+                            <TableCell>{student.class}</TableCell>
+                            <TableCell>{student.mobile}</TableCell>
+                            <TableCell>
+                              <div
+                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                  student.attendance[today] === "present"
+                                    ? "bg-green-900/20 text-green-400"
+                                    : student.attendance[today] === "absent"
+                                    ? "bg-red-900/20 text-red-400"
+                                    : "bg-yellow-900/20 text-yellow-400"
+                                }`}
+                              >
+                                {student.attendance[today] === "present"
+                                  ? "Present"
+                                  : student.attendance[today] === "absent"
+                                  ? "Absent"
+                                  : "Not Marked"}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-green-500 hover:text-green-400 hover:bg-green-900/20"
+                                  onClick={() => updateAttendance(student.id, today, 'present')}
+                                  title="Mark as present"
+                                >
+                                  <UserCheck className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-900/20"
+                                  onClick={() => updateAttendance(student.id, today, 'absent')}
+                                  title="Mark as absent"
+                                >
+                                  <UserX className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground border rounded-md border-dashed border-slate-700">
+                      No students found in {group.title}
+                    </div>
+                  )}
+                </TabsContent>
+              ))}
+            </Tabs>
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               {students.length === 0

@@ -18,3 +18,9 @@ export interface User {
   username: string;
   password: string;
 }
+
+// Semester mapping helper type
+export type SemesterGroup = {
+  title: string;
+  students: Student[];
+}
