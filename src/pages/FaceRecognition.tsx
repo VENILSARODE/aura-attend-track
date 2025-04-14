@@ -1,17 +1,52 @@
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Camera, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const FaceRecognition = () => {
   const { students, processAttendance } = useData();
   const [scanning, setScanning] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState("");
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [recognizedStudent, setRecognizedStudent] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const handleStartScan = () => {
+  // Clean up function to stop the camera stream
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+  };
+
+  useEffect(() => {
+    // Clean up stream when component unmounts
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "user" } 
+      });
+      setStream(mediaStream);
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      setError("Could not access camera. Please make sure camera permissions are enabled.");
+    }
+  };
+
+  const handleStartScan = async () => {
     if (students.length === 0) {
       setError("No students found in the database. Please add students first.");
       return;
@@ -20,18 +55,32 @@ const FaceRecognition = () => {
     setError("");
     setCompleted(false);
     setScanning(true);
+    setRecognizedStudent(null);
 
-    // Simulate face recognition process
-    setTimeout(() => {
-      // For demo purposes, randomly mark some students as present
-      const recognizedFaces = students
-        .filter(() => Math.random() > 0.3) // 70% chance of being recognized
-        .map(student => student.usn);
-      
-      processAttendance(recognizedFaces);
+    try {
+      await startCamera();
+
+      // Simulate face recognition process
+      setTimeout(() => {
+        // For demo purposes, randomly select a student to recognize
+        const randomStudent = students[Math.floor(Math.random() * students.length)];
+        setRecognizedStudent(randomStudent.id);
+        
+        // Mark only the recognized student as present
+        processAttendance([randomStudent.usn]);
+        
+        setScanning(false);
+        setCompleted(true);
+
+        // Stop camera after a delay to allow the user to see the result
+        setTimeout(() => {
+          stopCamera();
+        }, 3000);
+      }, 3000);
+    } catch (err) {
+      setError("Failed to start camera. Please check permissions.");
       setScanning(false);
-      setCompleted(true);
-    }, 3000);
+    }
   };
 
   return (
@@ -69,17 +118,53 @@ const FaceRecognition = () => {
           )}
           
           <div className="relative aspect-video bg-slate-900 rounded-md overflow-hidden flex items-center justify-center border border-slate-700">
-            {scanning ? (
-              <div className="flex flex-col items-center gap-2">
-                <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                <p className="text-sm text-slate-400">Scanning faces...</p>
-              </div>
+            {stream ? (
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                muted 
+                playsInline 
+                className="w-full h-full object-cover"
+              />
             ) : (
               <div className="flex flex-col items-center gap-2">
-                <Camera className="h-12 w-12 text-slate-600" />
-                <p className="text-sm text-slate-400">
-                  {completed ? "Scan completed" : "Camera preview will appear here"}
-                </p>
+                {scanning ? (
+                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                ) : (
+                  <>
+                    <CameraOff className="h-12 w-12 text-slate-600" />
+                    <p className="text-sm text-slate-400">
+                      {completed ? "Scan completed" : "Camera preview will appear here"}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+            
+            {/* Overlay for recognized student */}
+            {recognizedStudent && completed && (
+              <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
+                {(() => {
+                  const student = students.find(s => s.id === recognizedStudent);
+                  return student ? (
+                    <div className="flex flex-col items-center gap-3 p-4">
+                      <Avatar className="h-20 w-20 border-2 border-green-500">
+                        {student.photo ? (
+                          <AvatarImage src={student.photo} alt={student.name} />
+                        ) : (
+                          <AvatarFallback className="text-xl">{student.name.charAt(0)}</AvatarFallback>
+                        )}
+                      </Avatar>
+                      <div className="text-center">
+                        <h3 className="text-lg font-semibold text-white">{student.name}</h3>
+                        <p className="text-sm text-slate-300">{student.usn}</p>
+                        <span className="mt-2 inline-block px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-medium">
+                          Present
+                        </span>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
               </div>
             )}
           </div>
@@ -95,6 +180,8 @@ const FaceRecognition = () => {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Scanning...
               </>
+            ) : completed ? (
+              "Scan Again"
             ) : (
               "Start Face Recognition"
             )}
