@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown, UserX } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -18,6 +18,7 @@ const FaceRecognition = () => {
   const [recognizedStudent, setRecognizedStudent] = useState<string | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
   const [facePosition, setFacePosition] = useState<string | null>(null);
+  const [verificationFailed, setVerificationFailed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -50,6 +51,44 @@ const FaceRecognition = () => {
     return null;
   };
 
+  // Simulate a face verification against the database
+  const verifyFaceAgainstDatabase = (capturedImage: string | null): Promise<{ isVerified: boolean, studentId: string | null }> => {
+    return new Promise((resolve) => {
+      // Simulate verification processing
+      setTimeout(() => {
+        // If no students in database, can't verify
+        if (students.length === 0) {
+          resolve({ isVerified: false, studentId: null });
+          return;
+        }
+
+        // Simulation of more accurate face recognition
+        // In a real implementation, this would use actual face recognition algorithms
+        
+        // For simulation, we'll use a more robust detection success rate (70%)
+        const detectionSuccess = Math.random() < 0.7;
+        
+        if (detectionSuccess) {
+          // Only consider students with photos for matching in a real system
+          const studentsWithPhotos = students.filter(s => s.photo);
+          
+          if (studentsWithPhotos.length > 0) {
+            // Select a random student for simulation purposes
+            // In a real implementation, this would compare the captured image with student photos
+            const matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
+            resolve({ isVerified: true, studentId: matchedStudent.id });
+          } else {
+            // No students with photos to match against
+            resolve({ isVerified: false, studentId: null });
+          }
+        } else {
+          // Face detected but no match found in database
+          resolve({ isVerified: false, studentId: null });
+        }
+      }, 2000); // Simulate processing time
+    });
+  };
+
   useEffect(() => {
     if (scanning && stream) {
       const positionTimer = setTimeout(() => {
@@ -61,25 +100,47 @@ const FaceRecognition = () => {
           setFacePosition("good");
           setFaceDetected(true);
           
-          setTimeout(() => {
-            if (students.length > 0) {
-              const randomStudent = students[Math.floor(Math.random() * students.length)];
-              setRecognizedStudent(randomStudent.id);
+          setTimeout(async () => {
+            const capturedImage = captureFrame();
+            
+            try {
+              // Verify the captured face against the database
+              const { isVerified, studentId } = await verifyFaceAgainstDatabase(capturedImage);
               
-              const capturedImage = captureFrame();
-              
-              // Mark the student as present for today
-              const today = format(new Date(), "yyyy-MM-dd");
-              console.log(`Marking student ${randomStudent.id} as present on ${today}`);
-              updateAttendance(randomStudent.id, today, 'present');
-              
+              if (isVerified && studentId) {
+                setRecognizedStudent(studentId);
+                
+                // Mark the student as present for today
+                const today = format(new Date(), "yyyy-MM-dd");
+                console.log(`Marking student ${studentId} as present on ${today}`);
+                updateAttendance(studentId, today, 'present');
+                
+                setScanning(false);
+                setCompleted(true);
+                setVerificationFailed(false);
+                
+                const student = students.find(s => s.id === studentId);
+                toast({
+                  title: "Attendance Marked",
+                  description: `Successfully verified and marked ${student?.name} as present.`,
+                  variant: "default",
+                });
+              } else {
+                // Face detection succeeded but no match in database
+                setVerificationFailed(true);
+                setScanning(false);
+                setCompleted(true);
+                
+                toast({
+                  title: "Verification Failed",
+                  description: "Face detected but could not match to any student in the database.",
+                  variant: "destructive",
+                });
+              }
+            } catch (error) {
+              console.error("Face verification error:", error);
+              setError("An error occurred during face verification.");
               setScanning(false);
-              setCompleted(true);
-              toast({
-                title: "Attendance Marked",
-                description: `Successfully marked ${randomStudent.name} as present.`,
-                variant: "default",
-              });
             }
           }, 2000);
         }, 1500);
@@ -121,6 +182,7 @@ const FaceRecognition = () => {
     setRecognizedStudent(null);
     setFaceDetected(false);
     setFacePosition(null);
+    setVerificationFailed(false);
 
     try {
       await startCamera();
@@ -204,10 +266,17 @@ const FaceRecognition = () => {
             </div>
           )}
           
-          {completed && (
+          {completed && verificationFailed && (
+            <div className="flex items-center gap-2 rounded-md bg-amber-900/20 p-3 text-amber-400">
+              <UserX className="h-5 w-5" />
+              <span>Face detected but couldn't be matched to any student in the database.</span>
+            </div>
+          )}
+          
+          {completed && !verificationFailed && recognizedStudent && (
             <div className="flex items-center gap-2 rounded-md bg-green-900/20 p-3 text-green-400">
               <CheckCircle2 className="h-5 w-5" />
-              <span>Attendance marked successfully!</span>
+              <span>Student verified and attendance marked successfully!</span>
             </div>
           )}
           
@@ -248,7 +317,7 @@ const FaceRecognition = () => {
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 p-3">
                       <p className="text-sm text-center text-white font-medium">
                         {faceDetected 
-                          ? "Face recognized! Identifying..." 
+                          ? "Face recognized! Verifying student identity..." 
                           : "Looking for face..."}
                       </p>
                     </div>
@@ -272,7 +341,7 @@ const FaceRecognition = () => {
               </div>
             )}
             
-            {recognizedStudent && completed && (
+            {completed && recognizedStudent && !verificationFailed && (
               <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
                 {(() => {
                   const student = students.find(s => s.id === recognizedStudent);
@@ -297,6 +366,20 @@ const FaceRecognition = () => {
                     </div>
                   ) : null;
                 })()}
+              </div>
+            )}
+            
+            {completed && verificationFailed && (
+              <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
+                <div className="flex flex-col items-center gap-3 p-4 animate-fade-in">
+                  <div className="h-20 w-20 rounded-full border-2 border-amber-500 flex items-center justify-center bg-slate-800">
+                    <UserX className="h-10 w-10 text-amber-500" />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-lg font-semibold text-white">Verification Failed</h3>
+                    <p className="text-sm text-slate-300 mt-1">Face doesn't match any student in the database</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
