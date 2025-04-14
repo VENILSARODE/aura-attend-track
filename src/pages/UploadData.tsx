@@ -1,14 +1,15 @@
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { UserPlus, AlertCircle, CheckCircle2, Camera, Upload, X } from "lucide-react";
+import { UserPlus, AlertCircle, CheckCircle2, Camera, Upload, X, FileImage } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const UploadData = () => {
   const { addStudent } = useData();
@@ -22,6 +23,8 @@ const UploadData = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,6 +134,13 @@ const UploadData = () => {
   // Clear photo
   const clearPhoto = () => {
     setPhoto(null);
+  };
+
+  // Directly trigger file input click
+  const triggerFileUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   return (
@@ -286,18 +296,26 @@ const UploadData = () => {
                     </PopoverContent>
                   </Popover>
                   
-                  <label className="flex-1">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                    <Button type="button" variant="outline" className="w-full bg-slate-700 border-slate-600 hover:bg-slate-600">
-                      <Upload className="mr-2 h-4 w-4" />
-                      From Gallery
-                    </Button>
-                  </label>
+                  {/* Hidden file input with ref */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    capture={isMobile ? "environment" : undefined}
+                  />
+                  
+                  {/* Button that directly triggers file input */}
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="flex-1 bg-slate-700 border-slate-600 hover:bg-slate-600"
+                    onClick={triggerFileUpload}
+                  >
+                    <FileImage className="mr-2 h-4 w-4" />
+                    From Gallery
+                  </Button>
                 </div>
               )}
             </div>
