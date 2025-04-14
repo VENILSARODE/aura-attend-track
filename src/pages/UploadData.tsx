@@ -1,11 +1,14 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { UserPlus, AlertCircle, CheckCircle2 } from "lucide-react";
+import { UserPlus, AlertCircle, CheckCircle2, Camera, Upload, X } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const UploadData = () => {
   const { addStudent } = useData();
@@ -13,8 +16,12 @@ const UploadData = () => {
   const [usn, setUsn] = useState("");
   const [className, setClassName] = useState("");
   const [mobile, setMobile] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,12 +39,18 @@ const UploadData = () => {
       return;
     }
 
+    if (!photo) {
+      setError("Please upload or take a photo");
+      return;
+    }
+
     // Add student
     addStudent({
       name,
       usn,
       class: className,
-      mobile
+      mobile,
+      photo
     });
 
     // Reset form
@@ -45,12 +58,79 @@ const UploadData = () => {
     setUsn("");
     setClassName("");
     setMobile("");
+    setPhoto(null);
     setSuccess(true);
 
     // Clear success message after 3 seconds
     setTimeout(() => {
       setSuccess(false);
     }, 3000);
+  };
+
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhoto(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Start camera
+  const startCamera = async () => {
+    try {
+      setCameraActive(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      setError("Could not access camera. Please check permissions.");
+    }
+  };
+
+  // Stop camera
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  };
+
+  // Take photo
+  const takePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+      
+      if (context) {
+        // Set canvas dimensions to match video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Draw video frame to canvas
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Convert canvas to data URL
+        const photoData = canvas.toDataURL('image/jpeg');
+        setPhoto(photoData);
+        
+        // Stop camera
+        stopCamera();
+      }
+    }
+  };
+
+  // Clear photo
+  const clearPhoto = () => {
+    setPhoto(null);
   };
 
   return (
@@ -130,6 +210,96 @@ const UploadData = () => {
                 onChange={(e) => setMobile(e.target.value)}
                 className="bg-slate-700 border-slate-600"
               />
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="block mb-2">Photo</Label>
+              
+              {photo ? (
+                <div className="flex items-center justify-between gap-4 p-2 border border-slate-600 rounded-md bg-slate-700">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12 border border-slate-500">
+                      <AvatarImage src={photo} alt={name || "Student"} />
+                      <AvatarFallback className="bg-slate-600">{name ? name.charAt(0) : "S"}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm text-slate-300">Photo uploaded</span>
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={clearPhoto}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" className="flex-1 bg-slate-700 border-slate-600 hover:bg-slate-600">
+                        <Camera className="mr-2 h-4 w-4" />
+                        Take Selfie
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-0" align="start">
+                      <div className="p-4 bg-slate-800 rounded-t-md">
+                        <h3 className="font-medium">Take a Photo</h3>
+                        <p className="text-sm text-slate-400 mt-1">Please ensure you have good lighting</p>
+                      </div>
+                      
+                      <div className="relative bg-black aspect-[4/3] flex items-center justify-center">
+                        {cameraActive ? (
+                          <video 
+                            ref={videoRef} 
+                            autoPlay 
+                            playsInline 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                            <Camera className="h-8 w-8 mb-2 text-slate-400" />
+                            <p className="text-sm text-slate-400">Camera preview will appear here</p>
+                          </div>
+                        )}
+                        
+                        <canvas ref={canvasRef} className="hidden" />
+                      </div>
+                      
+                      <div className="flex p-3 bg-slate-800 rounded-b-md gap-2">
+                        {cameraActive ? (
+                          <>
+                            <Button type="button" variant="secondary" className="flex-1" onClick={stopCamera}>
+                              Cancel
+                            </Button>
+                            <Button type="button" className="flex-1" onClick={takePhoto}>
+                              Capture
+                            </Button>
+                          </>
+                        ) : (
+                          <Button type="button" className="w-full" onClick={startCamera}>
+                            Start Camera
+                          </Button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  
+                  <label className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <Button type="button" variant="outline" className="w-full bg-slate-700 border-slate-600 hover:bg-slate-600">
+                      <Upload className="mr-2 h-4 w-4" />
+                      From Gallery
+                    </Button>
+                  </label>
+                </div>
+              )}
             </div>
             
             <Button type="submit" className="w-full">
