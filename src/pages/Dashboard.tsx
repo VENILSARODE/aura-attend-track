@@ -27,6 +27,14 @@ const Dashboard = () => {
     ? Math.round((presentToday / totalStudents) * 100) 
     : 0;
 
+  // Log the current date and attendance status to help with debugging
+  console.log(`Dashboard date: ${formattedDate}`);
+  console.log(`Students with attendance records:`, students.map(s => ({
+    name: s.name,
+    date: formattedDate,
+    status: s.attendance[formattedDate] || 'not marked'
+  })));
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">

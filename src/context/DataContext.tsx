@@ -47,23 +47,25 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     console.log(`Marking student ${id} as ${status} on ${date}`);
     
     setStudents(prev => 
-      prev.map(student => 
-        student.id === id 
-          ? { 
-              ...student, 
-              attendance: { 
-                ...student.attendance, 
-                [date]: status 
-              } 
+      prev.map(student => {
+        if (student.id === id) {
+          console.log(`Updated student ${student.name} attendance for ${date}: ${status}`);
+          return { 
+            ...student, 
+            attendance: { 
+              ...student.attendance, 
+              [date]: status 
             } 
-          : student
-      )
+          };
+        }
+        return student;
+      })
     );
   };
 
   // Simulate facial recognition processing
   const processAttendance = (recognizedFaces: string[]) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     
     console.log(`Processing attendance for ${recognizedFaces.length} recognized faces on ${today}`);
     

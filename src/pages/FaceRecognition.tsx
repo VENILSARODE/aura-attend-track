@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -6,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 const FaceRecognition = () => {
   const { students, processAttendance, updateAttendance } = useData();
@@ -68,7 +68,8 @@ const FaceRecognition = () => {
               const capturedImage = captureFrame();
               
               // Mark the student as present for today
-              const today = new Date().toISOString().split('T')[0];
+              const today = format(new Date(), "yyyy-MM-dd");
+              console.log(`Marking student ${randomStudent.id} as present on ${today}`);
               updateAttendance(randomStudent.id, today, 'present');
               
               setScanning(false);
