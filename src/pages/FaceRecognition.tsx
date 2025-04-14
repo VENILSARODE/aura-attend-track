@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown, Eye } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -16,8 +16,8 @@ const FaceRecognition = () => {
   const [error, setError] = useState("");
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [recognizedStudent, setRecognizedStudent] = useState<string | null>(null);
-  const [eyesDetected, setEyesDetected] = useState(false);
-  const [eyePosition, setEyePosition] = useState<string | null>(null);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [facePosition, setFacePosition] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -53,13 +53,13 @@ const FaceRecognition = () => {
   useEffect(() => {
     if (scanning && stream) {
       const positionTimer = setTimeout(() => {
-        const positions = ["look_forward", "open_eyes_wide", "look_left", "look_right", "look_up", "look_down"];
+        const positions = ["look_forward", "center_face", "look_left", "look_right", "look_up", "look_down"];
         const randomPosition = positions[Math.floor(Math.random() * positions.length)];
-        setEyePosition(randomPosition);
+        setFacePosition(randomPosition);
         
         setTimeout(() => {
-          setEyePosition("good");
-          setEyesDetected(true);
+          setFacePosition("good");
+          setFaceDetected(true);
           
           setTimeout(() => {
             if (students.length > 0) {
@@ -119,8 +119,8 @@ const FaceRecognition = () => {
     setCompleted(false);
     setScanning(true);
     setRecognizedStudent(null);
-    setEyesDetected(false);
-    setEyePosition(null);
+    setFaceDetected(false);
+    setFacePosition(null);
 
     try {
       await startCamera();
@@ -131,38 +131,38 @@ const FaceRecognition = () => {
   };
 
   const renderPositionGuidance = () => {
-    if (!scanning || !eyePosition) return null;
+    if (!scanning || !facePosition) return null;
     
     let message = "";
     let Icon = null;
     
-    switch(eyePosition) {
+    switch(facePosition) {
       case "look_forward":
         message = "Look straight ahead at the camera";
-        Icon = Eye;
+        Icon = Camera;
         break;
-      case "open_eyes_wide":
-        message = "Open your eyes wide";
-        Icon = Eye;
+      case "center_face":
+        message = "Center your face in the frame";
+        Icon = Camera;
         break;
       case "look_left":
-        message = "Look slightly to the left";
+        message = "Turn slightly to the left";
         Icon = MoveLeft;
         break;
       case "look_right":
-        message = "Look slightly to the right";
+        message = "Turn slightly to the right";
         Icon = MoveRight;
         break;
       case "look_up":
-        message = "Look slightly up";
+        message = "Tilt your head slightly up";
         Icon = MoveUp;
         break;
       case "look_down":
-        message = "Look slightly down";
+        message = "Tilt your head slightly down";
         Icon = MoveDown;
         break;
       case "good":
-        message = "Perfect! Recognizing eyes...";
+        message = "Perfect! Recognizing face...";
         Icon = CheckCircle2;
         break;
     }
@@ -180,20 +180,20 @@ const FaceRecognition = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Eye Recognition</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Face Recognition</h1>
         <p className="text-muted-foreground">
-          Take attendance using eye recognition
+          Take attendance using face recognition
         </p>
       </div>
 
       <Card className="bg-slate-800 border-slate-700 shadow-md max-w-md mx-auto">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Eye className="h-5 w-5" />
-            <span>Eye Recognition</span>
+            <Camera className="h-5 w-5" />
+            <span>Face Recognition</span>
           </CardTitle>
           <CardDescription>
-            Start the camera to recognize students' eyes and mark attendance
+            Start the camera to recognize students' faces and mark attendance
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -232,22 +232,24 @@ const FaceRecognition = () => {
                   <div className="absolute inset-0 pointer-events-none">
                     {renderPositionGuidance()}
                     
-                    {/* Eye detection overlay */}
-                    <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2
-                                    w-56 h-20 border-2 rounded-full
-                                    border-primary animate-pulse"></div>
+                    {/* Face detection overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-56 h-64 border-2 rounded-md
+                                border-primary animate-pulse"></div>
+                    </div>
                     
-                    {eyesDetected && (
-                      <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
-                                      w-56 h-20 rounded-full border-2 border-green-500 
+                    {faceDetected && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-56 h-64 rounded-md border-2 border-green-500 
                                       animate-pulse bg-green-500/10"></div>
+                      </div>
                     )}
                     
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 p-3">
                       <p className="text-sm text-center text-white font-medium">
-                        {eyesDetected 
-                          ? "Eyes recognized! Identifying..." 
-                          : "Looking for eyes..."}
+                        {faceDetected 
+                          ? "Face recognized! Identifying..." 
+                          : "Looking for face..."}
                       </p>
                     </div>
                   </div>
@@ -313,7 +315,7 @@ const FaceRecognition = () => {
             ) : completed ? (
               "Scan Again"
             ) : (
-              "Start Eye Recognition"
+              "Start Face Recognition"
             )}
           </Button>
         </CardFooter>
