@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -87,7 +88,11 @@ const FaceRecognition = () => {
   const startCamera = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "user" } 
+        video: { 
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
       });
       setStream(mediaStream);
       
@@ -209,7 +214,13 @@ const FaceRecognition = () => {
                   autoPlay 
                   muted 
                   playsInline 
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transform scale-x-[-1]" // Mirror effect added here
+                  style={{ 
+                    display: 'block', 
+                    maxWidth: '100%', 
+                    maxHeight: '100%',
+                    objectFit: 'cover'
+                  }}
                 />
                 
                 {scanning && (
@@ -217,14 +228,14 @@ const FaceRecognition = () => {
                     {renderPositionGuidance()}
                     
                     <div className={`
-                      absolute inset-0 border-2 
+                      absolute inset-0 border-4 
                       ${faceDetected ? 'border-green-500' : 'border-primary'}
                       rounded-md ${faceDetected ? 'animate-none' : 'animate-pulse'}
                     `}></div>
                     
                     {faceDetected && (
                       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
-                                      w-48 h-48 rounded-full border-2 border-green-500 
+                                      w-48 h-48 rounded-full border-4 border-green-500 
                                       animate-pulse bg-green-500/10"></div>
                     )}
                     
