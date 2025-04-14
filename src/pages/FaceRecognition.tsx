@@ -1,9 +1,8 @@
-
 import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,10 +15,10 @@ const FaceRecognition = () => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [recognizedStudent, setRecognizedStudent] = useState<string | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
+  const [facePosition, setFacePosition] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Clean up function to stop the camera stream
   const stopCamera = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -28,13 +27,11 @@ const FaceRecognition = () => {
   };
 
   useEffect(() => {
-    // Clean up stream when component unmounts
     return () => {
       stopCamera();
     };
   }, []);
 
-  // Function to capture a frame from the video
   const captureFrame = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
@@ -42,11 +39,8 @@ const FaceRecognition = () => {
       const context = canvas.getContext('2d');
       
       if (context) {
-        // Set canvas dimensions to match video
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        
-        // Draw current video frame to canvas
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         return canvas.toDataURL('image/jpeg');
       }
@@ -54,38 +48,39 @@ const FaceRecognition = () => {
     return null;
   };
 
-  // Simulate face detection in video stream
   useEffect(() => {
     if (scanning && stream) {
-      // Simulate detecting a face after a short delay
-      const detectionTimer = setTimeout(() => {
-        setFaceDetected(true);
+      const positionTimer = setTimeout(() => {
+        const positions = ["center", "closer", "left", "right", "up", "down"];
+        const randomPosition = positions[Math.floor(Math.random() * positions.length)];
+        setFacePosition(randomPosition);
         
-        // Simulate face recognition process
         setTimeout(() => {
-          // For demo purposes, randomly select a student to recognize
-          if (students.length > 0) {
-            const randomStudent = students[Math.floor(Math.random() * students.length)];
-            setRecognizedStudent(randomStudent.id);
-            
-            // Capture the current frame
-            const capturedImage = captureFrame();
-            
-            // Mark only the recognized student as present
-            processAttendance([randomStudent.usn]);
-            
-            setScanning(false);
-            setCompleted(true);
-            toast({
-              title: "Attendance Marked",
-              description: `Successfully marked ${randomStudent.name} as present.`,
-              variant: "default",
-            });
-          }
-        }, 2000);
-      }, 1500);
+          setFacePosition("good");
+          setFaceDetected(true);
+          
+          setTimeout(() => {
+            if (students.length > 0) {
+              const randomStudent = students[Math.floor(Math.random() * students.length)];
+              setRecognizedStudent(randomStudent.id);
+              
+              const capturedImage = captureFrame();
+              
+              processAttendance([randomStudent.usn]);
+              
+              setScanning(false);
+              setCompleted(true);
+              toast({
+                title: "Attendance Marked",
+                description: `Successfully marked ${randomStudent.name} as present.`,
+                variant: "default",
+              });
+            }
+          }, 2000);
+        }, 1500);
+      }, 1000);
       
-      return () => clearTimeout(detectionTimer);
+      return () => clearTimeout(positionTimer);
     }
   }, [scanning, stream, students, processAttendance, toast]);
 
@@ -116,6 +111,7 @@ const FaceRecognition = () => {
     setScanning(true);
     setRecognizedStudent(null);
     setFaceDetected(false);
+    setFacePosition(null);
 
     try {
       await startCamera();
@@ -123,6 +119,52 @@ const FaceRecognition = () => {
       setError("Failed to start camera. Please check permissions.");
       setScanning(false);
     }
+  };
+
+  const renderPositionGuidance = () => {
+    if (!scanning || !facePosition) return null;
+    
+    let message = "";
+    let Icon = null;
+    
+    switch(facePosition) {
+      case "center":
+        message = "Center your face in the frame";
+        break;
+      case "closer":
+        message = "Move closer to the camera";
+        Icon = MoveUp;
+        break;
+      case "left":
+        message = "Move slightly to the left";
+        Icon = MoveLeft;
+        break;
+      case "right":
+        message = "Move slightly to the right";
+        Icon = MoveRight;
+        break;
+      case "up":
+        message = "Move slightly up";
+        Icon = MoveUp;
+        break;
+      case "down":
+        message = "Move slightly down";
+        Icon = MoveDown;
+        break;
+      case "good":
+        message = "Perfect! Recognizing face...";
+        Icon = CheckCircle2;
+        break;
+    }
+    
+    return (
+      <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 p-3 rounded-t-md">
+        <div className="flex items-center justify-center gap-2">
+          {Icon && <Icon className="h-5 w-5 text-primary animate-pulse" />}
+          <p className="text-sm text-center text-white font-medium">{message}</p>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -170,14 +212,22 @@ const FaceRecognition = () => {
                   className="w-full h-full object-cover"
                 />
                 
-                {/* Scanning overlay */}
                 {scanning && (
                   <div className="absolute inset-0 pointer-events-none">
+                    {renderPositionGuidance()}
+                    
                     <div className={`
-                      absolute inset-0 border-2 border-transparent
+                      absolute inset-0 border-2 
                       ${faceDetected ? 'border-green-500' : 'border-primary'}
-                      rounded-md animate-pulse
+                      rounded-md ${faceDetected ? 'animate-none' : 'animate-pulse'}
                     `}></div>
+                    
+                    {faceDetected && (
+                      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
+                                      w-48 h-48 rounded-full border-2 border-green-500 
+                                      animate-pulse bg-green-500/10"></div>
+                    )}
+                    
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 p-3">
                       <p className="text-sm text-center text-white font-medium">
                         {faceDetected 
@@ -188,7 +238,6 @@ const FaceRecognition = () => {
                   </div>
                 )}
                 
-                {/* Hidden canvas for capturing frames */}
                 <canvas ref={canvasRef} className="hidden" />
               </>
             ) : (
@@ -206,13 +255,12 @@ const FaceRecognition = () => {
               </div>
             )}
             
-            {/* Overlay for recognized student */}
             {recognizedStudent && completed && (
               <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
                 {(() => {
                   const student = students.find(s => s.id === recognizedStudent);
                   return student ? (
-                    <div className="flex flex-col items-center gap-3 p-4">
+                    <div className="flex flex-col items-center gap-3 p-4 animate-fade-in">
                       <Avatar className="h-20 w-20 border-2 border-green-500">
                         {student.photo ? (
                           <AvatarImage src={student.photo} alt={student.name} />
