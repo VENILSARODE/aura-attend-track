@@ -44,6 +44,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateAttendance = (id: string, date: string, status: 'present' | 'absent') => {
+    console.log(`Marking student ${id} as ${status} on ${date}`);
+    
     setStudents(prev => 
       prev.map(student => 
         student.id === id 
@@ -63,14 +65,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const processAttendance = (recognizedFaces: string[]) => {
     const today = new Date().toISOString().split('T')[0];
     
+    console.log(`Processing attendance for ${recognizedFaces.length} recognized faces on ${today}`);
+    
     setStudents(prev => 
-      prev.map(student => ({
-        ...student,
-        attendance: {
-          ...student.attendance,
-          [today]: recognizedFaces.includes(student.usn) ? 'present' : 'absent'
-        }
-      }))
+      prev.map(student => {
+        const isPresent = recognizedFaces.includes(student.usn);
+        console.log(`Student ${student.name} (${student.usn}): ${isPresent ? 'present' : 'absent'}`);
+        
+        return {
+          ...student,
+          attendance: {
+            ...student.attendance,
+            [today]: isPresent ? 'present' : 'absent'
+          }
+        };
+      })
     );
   };
 

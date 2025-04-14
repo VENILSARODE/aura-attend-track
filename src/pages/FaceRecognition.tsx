@@ -8,7 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 
 const FaceRecognition = () => {
-  const { students, processAttendance } = useData();
+  const { students, processAttendance, updateAttendance } = useData();
   const { toast } = useToast();
   const [scanning, setScanning] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -67,7 +67,9 @@ const FaceRecognition = () => {
               
               const capturedImage = captureFrame();
               
-              processAttendance([randomStudent.usn]);
+              // Mark the student as present for today
+              const today = new Date().toISOString().split('T')[0];
+              updateAttendance(randomStudent.id, today, 'present');
               
               setScanning(false);
               setCompleted(true);
@@ -83,7 +85,7 @@ const FaceRecognition = () => {
       
       return () => clearTimeout(positionTimer);
     }
-  }, [scanning, stream, students, processAttendance, toast]);
+  }, [scanning, stream, students, processAttendance, toast, updateAttendance]);
 
   const startCamera = async () => {
     try {
