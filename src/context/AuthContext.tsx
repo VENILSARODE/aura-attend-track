@@ -1,5 +1,6 @@
 
 import { createContext, useState, useContext, useEffect, ReactNode } from "react";
+import { toast } from "@/components/ui/sonner";
 
 type AuthContextType = {
   isAuthenticated: boolean;
@@ -30,29 +31,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!localStorage.getItem(USERS_STORAGE_KEY)) {
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify([]));
     }
+
+    // Log the current users in storage for debugging
+    console.log("Current users in storage:", JSON.parse(localStorage.getItem(USERS_STORAGE_KEY) || "[]"));
   }, []);
 
   const login = (username: string, password: string) => {
-    // In a real app, this would be an API call
+    // Get all users and convert to lowercase for case-insensitive comparison
     const users = JSON.parse(localStorage.getItem(USERS_STORAGE_KEY) || "[]");
+    console.log("Attempting login for:", username);
+    console.log("Available users:", users);
+    
+    // Case insensitive username matching
     const user = users.find(
-      (u: any) => u.username === username && u.password === password
+      (u: any) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
     );
 
     if (user) {
       setIsAuthenticated(true);
-      setUsername(username);
-      localStorage.setItem("currentUser", JSON.stringify({ username }));
+      setUsername(user.username); // Use the stored username case
+      localStorage.setItem("currentUser", JSON.stringify({ username: user.username }));
+      toast.success(`Welcome back, ${user.username}!`);
       return true;
     }
+    
+    toast.error("Invalid username or password");
     return false;
   };
 
   const signup = (username: string, password: string) => {
     const users = JSON.parse(localStorage.getItem(USERS_STORAGE_KEY) || "[]");
     
-    // Check if user already exists
-    if (users.some((u: any) => u.username === username)) {
+    // Case insensitive check if user already exists
+    if (users.some((u: any) => u.username.toLowerCase() === username.toLowerCase())) {
+      toast.error("Username already exists");
       return false;
     }
     
@@ -67,6 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAuthenticated(true);
     setUsername(username);
     localStorage.setItem("currentUser", JSON.stringify({ username }));
+    toast.success(`Account created successfully. Welcome, ${username}!`);
     return true;
   };
 
@@ -74,6 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAuthenticated(false);
     setUsername(null);
     localStorage.removeItem("currentUser");
+    toast.info("You have been logged out");
   };
 
   return (
