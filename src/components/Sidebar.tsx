@@ -1,6 +1,6 @@
 
 import { useNavigate } from "react-router-dom";
-import { Home, Upload, Camera, Database, LogOut } from "lucide-react";
+import { Home, Upload, Camera, Database, MessageSquare, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ export const Sidebar = () => {
     { label: "Upload Data", icon: Upload, path: "/upload-data" },
     { label: "Face Recognition", icon: Camera, path: "/face-recognition" },
     { label: "Data Store", icon: Database, path: "/data-store" },
+    { label: "Messages", icon: MessageSquare, path: "/messages" },
   ];
 
   const handleNavigation = (path: string) => {
