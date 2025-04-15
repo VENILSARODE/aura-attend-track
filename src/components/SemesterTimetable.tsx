@@ -1,5 +1,5 @@
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ImagePlus, Upload } from "lucide-react";
@@ -7,10 +7,11 @@ import { useToast } from "@/hooks/use-toast";
 
 interface SemesterTimetableProps {
   semester: number;
+  timetableImage: string | null;
+  onImageUpdate: (imageData: string | null) => void;
 }
 
-const SemesterTimetable = ({ semester }: SemesterTimetableProps) => {
-  const [timetableImage, setTimetableImage] = useState<string | null>(null);
+const SemesterTimetable = ({ semester, timetableImage, onImageUpdate }: SemesterTimetableProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -34,7 +35,7 @@ const SemesterTimetable = ({ semester }: SemesterTimetableProps) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       if (e.target?.result) {
-        setTimetableImage(e.target.result as string);
+        onImageUpdate(e.target.result as string);
         toast({
           title: "Image uploaded",
           description: `Timetable image for Semester ${semester} has been uploaded`,
