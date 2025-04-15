@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SemesterGroup } from "@/types";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const DataStore = () => {
   const { students, updateAttendance } = useData();
@@ -143,6 +144,7 @@ const DataStore = () => {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-slate-700">
+                          <TableHead className="w-[60px]">Photo</TableHead>
                           <TableHead>Name</TableHead>
                           <TableHead>USN</TableHead>
                           <TableHead>Class</TableHead>
@@ -154,6 +156,14 @@ const DataStore = () => {
                       <TableBody>
                         {group.students.map((student) => (
                           <TableRow key={student.id} className="border-t border-slate-700">
+                            <TableCell>
+                              <Avatar className="h-9 w-9 border border-slate-600">
+                                <AvatarImage src={student.photo} alt={student.name} />
+                                <AvatarFallback className="bg-slate-700 text-slate-300">
+                                  {student.name.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                            </TableCell>
                             <TableCell>{student.name}</TableCell>
                             <TableCell>{student.usn}</TableCell>
                             <TableCell>{student.class}</TableCell>
