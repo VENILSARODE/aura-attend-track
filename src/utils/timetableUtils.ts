@@ -75,3 +75,31 @@ export const getSubjectForPeriod = (timetableImage: string | null, period: numbe
   
   return subjectMap[period] || "Unknown";
 };
+
+/**
+ * Extract semester number from class string
+ * @param classStr The class string (e.g. "3rd Semester CSE" or "2nd Year ECE")
+ * @returns Semester number (1-8)
+ */
+export const getSemesterFromClass = (classStr: string): number => {
+  // Try to extract numbers from the class string
+  const semMatch = classStr.match(/(\d+)(st|nd|rd|th)?(\s+)?(sem|semester)?/i);
+  if (semMatch) {
+    return parseInt(semMatch[1], 10);
+  }
+  
+  // Check for year-based format
+  const yearMatch = classStr.match(/(1st|2nd|3rd|4th)(\s+)?year/i);
+  if (yearMatch) {
+    // Convert year to semester (approximately)
+    switch(yearMatch[1].toLowerCase()) {
+      case '1st': return 2; // 1st year ~ 2nd semester
+      case '2nd': return 4; // 2nd year ~ 4th semester
+      case '3rd': return 6; // 3rd year ~ 6th semester
+      case '4th': return 8; // 4th year ~ 8th semester
+      default: return 1;
+    }
+  }
+  
+  return 1; // Default to 1st semester if no match
+};
