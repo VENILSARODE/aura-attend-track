@@ -17,6 +17,7 @@ const UploadData = () => {
   const [usn, setUsn] = useState("");
   const [className, setClassName] = useState("");
   const [mobile, setMobile] = useState("");
+  const [parentMobile, setParentMobile] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -33,12 +34,17 @@ const UploadData = () => {
 
     // Validate form
     if (!name || !usn || !className || !mobile) {
-      setError("Please fill all the fields");
+      setError("Please fill all the required fields");
       return;
     }
 
     if (mobile.length !== 10 || !/^\d+$/.test(mobile)) {
-      setError("Please enter a valid 10 digit mobile number");
+      setError("Please enter a valid 10 digit student mobile number");
+      return;
+    }
+
+    if (parentMobile && (parentMobile.length !== 10 || !/^\d+$/.test(parentMobile))) {
+      setError("Please enter a valid 10 digit parent mobile number");
       return;
     }
 
@@ -53,6 +59,7 @@ const UploadData = () => {
       usn,
       class: className,
       mobile,
+      parentMobile: parentMobile || undefined,
       photo
     });
 
@@ -61,6 +68,7 @@ const UploadData = () => {
     setUsn("");
     setClassName("");
     setMobile("");
+    setParentMobile("");
     setPhoto(null);
     setSuccess(true);
 
@@ -212,12 +220,23 @@ const UploadData = () => {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="mobile">Mobile Number</Label>
+              <Label htmlFor="mobile">Student Mobile</Label>
               <Input
                 id="mobile"
                 placeholder="Enter student's mobile number"
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
+                className="bg-slate-700 border-slate-600"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="parentMobile">Parents Mobile</Label>
+              <Input
+                id="parentMobile"
+                placeholder="Enter parent's mobile number"
+                value={parentMobile}
+                onChange={(e) => setParentMobile(e.target.value)}
                 className="bg-slate-700 border-slate-600"
               />
             </div>

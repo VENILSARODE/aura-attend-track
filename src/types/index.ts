@@ -6,6 +6,7 @@ export interface Student {
   usn: string;
   class: string;
   mobile: string;
+  parentMobile?: string; // Added parents mobile number
   photo?: string; // URL/base64 of student photo
   attendance: {
     [date: string]: 'present' | 'absent';
