@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,11 +8,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SemesterGroup } from "@/types";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useToast } from "@/hooks/use-toast";
+import { getCurrentPeriod, getSubjectForPeriod } from "@/utils/timetableUtils";
 
 const DataStore = () => {
   const { students, updateAttendance } = useData();
   const [searchTerm, setSearchTerm] = useState("");
   const today = new Date().toISOString().split("T")[0];
+  const { toast } = useToast();
 
   // Filter students based on search term
   const filteredStudents = students.filter((student) => {
@@ -24,6 +26,71 @@ const DataStore = () => {
       student.class.toLowerCase().includes(searchLower)
     );
   });
+
+  // Function to handle attendance update and send message to parents if absent
+  const handleAttendanceUpdate = (studentId: string, status: 'present' | 'absent') => {
+    updateAttendance(studentId, today, status);
+    
+    // If student is marked absent, send message to parent
+    if (status === 'absent') {
+      const student = students.find(s => s.id === studentId);
+      if (student) {
+        sendAbsentNotification(student);
+      }
+    }
+  };
+
+  // Function to send absent notification to parent
+  const sendAbsentNotification = (student: any) => {
+    // Get current period
+    const currentPeriod = getCurrentPeriod();
+    
+    // For real implementation, we would lookup the actual timetable image
+    // but for now we'll use a generic subject based on period
+    const currentSubject = getSubjectForPeriod(null, currentPeriod);
+    
+    // Format current time
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    // Construct the message
+    const message = `Dear sir/ma'am,
+    
+Your child ${student.name} is absent for the class subject ${currentSubject} at ${timeString}.
+
+Thank you
+BITM Regards`;
+
+    // Send message to parent's mobile
+    const parentMobile = student.parentMobile || student.mobile;
+    
+    if (parentMobile) {
+      // Open WhatsApp
+      const whatsappUrl = `https://wa.me/${parentMobile.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
+      
+      // Open SMS
+      const smsUrl = `sms:${parentMobile}?body=${encodeURIComponent(message)}`;
+      setTimeout(() => {
+        window.location.href = smsUrl;
+      }, 1000); // Delay SMS slightly to ensure both windows can open
+      
+      toast({
+        title: "Notification Sent",
+        description: `Attendance notification sent to parent of ${student.name}`,
+      });
+    } else {
+      toast({
+        title: "Missing Contact",
+        description: "Parent mobile number not available for this student",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Function to extract semester number from class string
   const getSemesterFromClass = (classStr: string): number => {
@@ -49,6 +116,14 @@ const DataStore = () => {
     return 1; // Default to 1st semester if no match
   };
 
+  // Helper function to get ordinal suffix for numbers
+  const getSuffixForNumber = (num: number): string => {
+    if (num === 1) return 'st';
+    if (num === 2) return 'nd';
+    if (num === 3) return 'rd';
+    return 'th';
+  };
+
   // Group students by semester
   const groupStudentsBySemester = (): SemesterGroup[] => {
     const semesterGroups: SemesterGroup[] = Array.from({ length: 8 }, (_, i) => ({
@@ -64,14 +139,6 @@ const DataStore = () => {
     });
 
     return semesterGroups;
-  };
-
-  // Helper function to get ordinal suffix for numbers
-  const getSuffixForNumber = (num: number): string => {
-    if (num === 1) return 'st';
-    if (num === 2) return 'nd';
-    if (num === 3) return 'rd';
-    return 'th';
   };
 
   const semesterGroups = groupStudentsBySemester();
@@ -167,7 +234,14 @@ const DataStore = () => {
                             <TableCell>{student.name}</TableCell>
                             <TableCell>{student.usn}</TableCell>
                             <TableCell>{student.class}</TableCell>
-                            <TableCell>{student.mobile}</TableCell>
+                            <TableCell>
+                              {student.mobile}
+                              {student.parentMobile && (
+                                <div className="text-xs text-slate-400">
+                                  Parent: {student.parentMobile}
+                                </div>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <div
                                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -191,7 +265,7 @@ const DataStore = () => {
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-green-500 hover:text-green-400 hover:bg-green-900/20"
-                                  onClick={() => updateAttendance(student.id, today, 'present')}
+                                  onClick={() => handleAttendanceUpdate(student.id, 'present')}
                                   title="Mark as present"
                                 >
                                   <UserCheck className="h-4 w-4" />
@@ -200,7 +274,7 @@ const DataStore = () => {
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-900/20"
-                                  onClick={() => updateAttendance(student.id, today, 'absent')}
+                                  onClick={() => handleAttendanceUpdate(student.id, 'absent')}
                                   title="Mark as absent"
                                 >
                                   <UserX className="h-4 w-4" />
