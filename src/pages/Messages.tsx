@@ -3,13 +3,33 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageSquare, MessageCircle } from "lucide-react";
+import { MessageSquare, MessageCircle, Circle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Messages = () => {
   const [message, setMessage] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [subject, setSubject] = useState("");
   const { toast } = useToast();
+
+  const subjects = [
+    "DBMS",
+    "ADA",
+    "DA",
+    "DS",
+    "BIO",
+    "UHV",
+    "PSW",
+    "ADA LAB",
+    "DBMS LAB",
+    "DS LAB"
+  ];
 
   const handleWhatsAppMessage = () => {
     if (!message.trim()) {
@@ -21,12 +41,18 @@ const Messages = () => {
       return;
     }
 
+    // Format the message with subject if selected
+    let formattedMessage = message;
+    if (subject) {
+      formattedMessage = `Subject: ${subject}\n\n${message}`;
+    }
+    
     // Format the phone number and message for WhatsApp
-    const formattedMessage = encodeURIComponent(message);
+    const encodedMessage = encodeURIComponent(formattedMessage);
     // If phone number is provided, send to that number, otherwise open WhatsApp without a recipient
     const whatsappUrl = phoneNumber
-      ? `https://wa.me/${phoneNumber.replace(/\D/g, '')}?text=${formattedMessage}`
-      : `https://web.whatsapp.com/send?text=${formattedMessage}`;
+      ? `https://wa.me/${phoneNumber.replace(/\D/g, '')}?text=${encodedMessage}`
+      : `https://web.whatsapp.com/send?text=${encodedMessage}`;
     
     window.open(whatsappUrl, '_blank');
     
@@ -46,12 +72,18 @@ const Messages = () => {
       return;
     }
 
+    // Format the message with subject if selected
+    let formattedMessage = message;
+    if (subject) {
+      formattedMessage = `Subject: ${subject}\n\n${message}`;
+    }
+    
     // Format the message for SMS
-    const formattedMessage = encodeURIComponent(message);
+    const encodedMessage = encodeURIComponent(formattedMessage);
     // If phone number is provided, include it, otherwise just open with the message
     const smsUrl = phoneNumber 
-      ? `sms:${phoneNumber}?body=${formattedMessage}`
-      : `sms:?body=${formattedMessage}`;
+      ? `sms:${phoneNumber}?body=${encodedMessage}`
+      : `sms:?body=${encodedMessage}`;
     
     window.location.href = smsUrl;
     
@@ -88,6 +120,33 @@ const Messages = () => {
             <p className="text-xs text-slate-400">
               If left empty, you'll need to select a contact in WhatsApp or your messaging app
             </p>
+          </div>
+          
+          <div className="space-y-2">
+            <label htmlFor="subject" className="text-sm font-medium">
+              Subject
+            </label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-between bg-slate-700 border-slate-600 hover:bg-slate-600 text-white"
+                >
+                  {subject || "Select a subject"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 bg-slate-700 border-slate-600 text-white">
+                {subjects.map((subj) => (
+                  <DropdownMenuItem 
+                    key={subj} 
+                    onClick={() => setSubject(subj)}
+                    className="hover:bg-slate-600 focus:bg-slate-600"
+                  >
+                    <Circle className="mr-2 h-2 w-2" /> {subj}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           
           <div className="space-y-2">
