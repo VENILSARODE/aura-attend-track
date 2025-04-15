@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface SemesterTimetableProps {
@@ -50,14 +50,30 @@ const SemesterTimetable = ({ semester }: SemesterTimetableProps) => {
         <CardTitle>Semester {semester} Timetable</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-3">
           <Button
             onClick={handleSelectImage}
             className="bg-green-600 hover:bg-green-700 flex items-center gap-2"
           >
             <ImagePlus className="h-5 w-5" />
-            Add Image from Gallery
+            {timetableImage ? "Re-upload Image" : "Add Image from Gallery"}
           </Button>
+          
+          {timetableImage && (
+            <Button
+              onClick={() => {
+                toast({
+                  title: "Timetable uploaded",
+                  description: `Timetable for Semester ${semester} has been uploaded to the system`,
+                });
+              }}
+              className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
+            >
+              <Upload className="h-5 w-5" />
+              Upload to System
+            </Button>
+          )}
+          
           <input
             type="file"
             ref={fileInputRef}
