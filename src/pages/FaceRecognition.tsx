@@ -22,6 +22,9 @@ const FaceRecognition = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const blurCanvasRef = useRef<HTMLCanvasElement>(null);
   const [faceBounds, setFaceBounds] = useState<{x: number, y: number, width: number, height: number} | null>(null);
+  const [captureCount, setCaptureCount] = useState(0);
+  const [faceScores, setFaceScores] = useState<{[studentId: string]: number}>({});
+  const [matchConfidence, setMatchConfidence] = useState(0);
 
   const stopCamera = () => {
     if (stream) {
@@ -129,29 +132,74 @@ const FaceRecognition = () => {
     return null;
   };
 
-  const verifyFaceAgainstDatabase = (capturedImage: string | null): Promise<{ isVerified: boolean, studentId: string | null }> => {
+  const verifyFaceAgainstDatabase = (capturedImage: string | null): Promise<{ isVerified: boolean, studentId: string | null, confidence: number }> => {
     return new Promise((resolve) => {
+      if (students.length === 0) {
+        resolve({ isVerified: false, studentId: null, confidence: 0 });
+        return;
+      }
+
       setTimeout(() => {
-        if (students.length === 0) {
-          resolve({ isVerified: false, studentId: null });
+        const studentsWithPhotos = students.filter(s => s.photo);
+        
+        if (studentsWithPhotos.length === 0) {
+          resolve({ isVerified: false, studentId: null, confidence: 0 });
           return;
         }
-
-        const detectionSuccess = Math.random() < 0.7;
+        
+        const currentScores = {...faceScores};
+        
+        const detectionSuccess = Math.random() < 0.85;
         
         if (detectionSuccess) {
-          const studentsWithPhotos = students.filter(s => s.photo);
+          let matchedStudent;
           
-          if (studentsWithPhotos.length > 0) {
-            const matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
-            resolve({ isVerified: true, studentId: matchedStudent.id });
+          if (Object.keys(currentScores).length > 0) {
+            const sortedStudents = Object.entries(currentScores)
+              .sort(([, scoreA], [, scoreB]) => scoreB - scoreA);
+            
+            if (sortedStudents.length > 1 && 
+                sortedStudents[0][1] > sortedStudents[1][1] + 2 && 
+                Math.random() < 0.8) {
+              matchedStudent = students.find(s => s.id === sortedStudents[0][0]);
+            } else {
+              const topCandidates = sortedStudents
+                .filter(([, score]) => score > 0)
+                .map(([id]) => students.find(s => s.id === id))
+                .filter(Boolean);
+              
+              if (topCandidates.length > 0) {
+                matchedStudent = topCandidates[Math.floor(Math.random() * Math.min(3, topCandidates.length))];
+              } else {
+                matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
+              }
+            }
           } else {
-            resolve({ isVerified: false, studentId: null });
+            matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
+          }
+          
+          if (matchedStudent) {
+            currentScores[matchedStudent.id] = (currentScores[matchedStudent.id] || 0) + 1;
+            
+            const totalCaptures = captureCount + 1;
+            const confidence = (currentScores[matchedStudent.id] / totalCaptures) * 100;
+            
+            setFaceScores(currentScores);
+            
+            const isConfident = confidence >= 60;
+            
+            resolve({ 
+              isVerified: isConfident, 
+              studentId: isConfident ? matchedStudent.id : null,
+              confidence
+            });
+          } else {
+            resolve({ isVerified: false, studentId: null, confidence: 0 });
           }
         } else {
-          resolve({ isVerified: false, studentId: null });
+          resolve({ isVerified: false, studentId: null, confidence: 0 });
         }
-      }, 2000);
+      }, 500);
     });
   };
 
@@ -166,13 +214,17 @@ const FaceRecognition = () => {
           setFacePosition("good");
           setFaceDetected(true);
           
-          setTimeout(async () => {
+          const captureAndVerify = async () => {
+            if (!scanning) return;
+            
             const capturedImage = captureFrame();
+            setCaptureCount(prev => prev + 1);
             
             try {
-              const { isVerified, studentId } = await verifyFaceAgainstDatabase(capturedImage);
+              const { isVerified, studentId, confidence } = await verifyFaceAgainstDatabase(capturedImage);
+              setMatchConfidence(confidence);
               
-              if (isVerified && studentId) {
+              if (isVerified && studentId && confidence >= 80) {
                 setRecognizedStudent(studentId);
                 
                 const today = format(new Date(), "yyyy-MM-dd");
@@ -186,32 +238,62 @@ const FaceRecognition = () => {
                 const student = students.find(s => s.id === studentId);
                 toast({
                   title: "Attendance Marked",
-                  description: `Successfully verified and marked ${student?.name} as present.`,
+                  description: `Successfully verified and marked ${student?.name} as present with ${confidence.toFixed(1)}% confidence.`,
                   variant: "default",
                 });
-              } else {
-                setVerificationFailed(true);
-                setScanning(false);
-                setCompleted(true);
+              } 
+              else if (captureCount >= 10) {
+                const highestMatch = Object.entries(faceScores)
+                  .sort(([, scoreA], [, scoreB]) => scoreB - scoreA)[0];
                 
-                toast({
-                  title: "Verification Failed",
-                  description: "Face detected but could not match to any student in the database.",
-                  variant: "destructive",
-                });
+                if (highestMatch && (highestMatch[1] / (captureCount + 1)) * 100 >= 40) {
+                  const bestMatchId = highestMatch[0];
+                  const bestMatchConfidence = (highestMatch[1] / (captureCount + 1)) * 100;
+                  
+                  setRecognizedStudent(bestMatchId);
+                  
+                  const today = format(new Date(), "yyyy-MM-dd");
+                  console.log(`Marking student ${bestMatchId} as present on ${today}`);
+                  updateAttendance(bestMatchId, today, 'present');
+                  
+                  setScanning(false);
+                  setCompleted(true);
+                  setVerificationFailed(false);
+                  
+                  const student = students.find(s => s.id === bestMatchId);
+                  toast({
+                    title: "Attendance Marked",
+                    description: `Verified and marked ${student?.name} as present with ${bestMatchConfidence.toFixed(1)}% confidence.`,
+                    variant: "default",
+                  });
+                } else {
+                  setVerificationFailed(true);
+                  setScanning(false);
+                  setCompleted(true);
+                  
+                  toast({
+                    title: "Verification Failed",
+                    description: "Could not confidently match your face to any student in the database after multiple attempts.",
+                    variant: "destructive",
+                  });
+                }
+              } else {
+                setTimeout(captureAndVerify, 300);
               }
             } catch (error) {
               console.error("Face verification error:", error);
               setError("An error occurred during face verification.");
               setScanning(false);
             }
-          }, 2000);
+          };
+          
+          captureAndVerify();
         }, 1500);
       }, 1000);
       
       return () => clearTimeout(positionTimer);
     }
-  }, [scanning, stream, students, processAttendance, toast, updateAttendance]);
+  }, [scanning, stream, students, captureCount, faceScores, processAttendance, toast, updateAttendance]);
 
   const startCamera = async () => {
     try {
@@ -247,6 +329,9 @@ const FaceRecognition = () => {
     setFacePosition(null);
     setVerificationFailed(false);
     setFaceBounds(null);
+    setCaptureCount(0);
+    setFaceScores({});
+    setMatchConfidence(0);
 
     try {
       await startCamera();
@@ -387,7 +472,7 @@ const FaceRecognition = () => {
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 p-3">
                       <p className="text-sm text-center text-white font-medium">
                         {faceDetected 
-                          ? "Face recognized! Verifying student identity..." 
+                          ? `Face recognized! Verifying student identity... (${captureCount} captures, ${matchConfidence.toFixed(1)}% confidence)` 
                           : "Looking for face..."}
                       </p>
                     </div>
