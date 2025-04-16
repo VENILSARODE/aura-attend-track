@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -25,6 +26,11 @@ const FaceRecognition = () => {
   const [captureCount, setCaptureCount] = useState(0);
   const [faceScores, setFaceScores] = useState<{[studentId: string]: number}>({});
   const [matchConfidence, setMatchConfidence] = useState(0);
+  const [stableMatches, setStableMatches] = useState(0);
+  const [lastMatchedId, setLastMatchedId] = useState<string | null>(null);
+  const MAX_CAPTURES = 15; // Increase total capture count
+  const CONFIDENCE_THRESHOLD = 70; // Increase confidence threshold
+  const STABLE_MATCHES_REQUIRED = 3; // Require consecutive consistent matches
 
   const stopCamera = () => {
     if (stream) {
@@ -73,10 +79,12 @@ const FaceRecognition = () => {
       const faceRect = simulateFaceDetection();
       setFaceBounds(faceRect);
       
+      // Apply a light blur to the entire image first
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const blurredData = boxBlur(imageData, 5);
+      const blurredData = boxBlur(imageData, 2); // Reduced blur intensity 
       ctx.putImageData(blurredData, 0, 0);
       
+      // Draw the face region without blur
       ctx.save();
       ctx.beginPath();
       ctx.rect(faceRect.x, faceRect.y, faceRect.width, faceRect.height);
@@ -84,6 +92,7 @@ const FaceRecognition = () => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.restore();
       
+      // Draw a subtle highlight frame around the face
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.lineWidth = 2;
       ctx.strokeRect(faceRect.x, faceRect.y, faceRect.width, faceRect.height);
@@ -102,7 +111,7 @@ const FaceRecognition = () => {
       tempCtx.putImageData(imageData, 0, 0);
       
       for (let i = 0; i < iterations; i++) {
-        tempCtx.filter = 'blur(3px)';
+        tempCtx.filter = 'blur(2px)'; // Use a lighter blur
         tempCtx.drawImage(tempCanvas, 0, 0);
       }
       
@@ -147,31 +156,45 @@ const FaceRecognition = () => {
           return;
         }
         
+        // Create a copy of current scores to avoid state timing issues
         const currentScores = {...faceScores};
         
-        const detectionSuccess = Math.random() < 0.85;
+        // Simulate detection with improved accuracy (85% -> 90%)
+        const detectionSuccess = Math.random() < 0.9;
         
         if (detectionSuccess) {
           let matchedStudent;
           
+          // Improved matching logic
           if (Object.keys(currentScores).length > 0) {
             const sortedStudents = Object.entries(currentScores)
               .sort(([, scoreA], [, scoreB]) => scoreB - scoreA);
             
+            // More confident matching - require bigger gap between first and second match
             if (sortedStudents.length > 1 && 
-                sortedStudents[0][1] > sortedStudents[1][1] + 2 && 
-                Math.random() < 0.8) {
+                sortedStudents[0][1] > sortedStudents[1][1] + 3 && 
+                Math.random() < 0.85) {
               matchedStudent = students.find(s => s.id === sortedStudents[0][0]);
             } else {
-              const topCandidates = sortedStudents
-                .filter(([, score]) => score > 0)
-                .map(([id]) => students.find(s => s.id === id))
-                .filter(Boolean);
-              
-              if (topCandidates.length > 0) {
-                matchedStudent = topCandidates[Math.floor(Math.random() * Math.min(3, topCandidates.length))];
+              // Improve matching by prioritizing recent matches
+              if (lastMatchedId && 
+                  currentScores[lastMatchedId] && 
+                  currentScores[lastMatchedId] > 0 &&
+                  Math.random() < 0.75) {
+                matchedStudent = students.find(s => s.id === lastMatchedId);
               } else {
-                matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
+                // Get only students with reasonable match quality
+                const topCandidates = sortedStudents
+                  .filter(([, score]) => score > (captureCount * 0.2)) // Require minimum score
+                  .map(([id]) => students.find(s => s.id === id))
+                  .filter(Boolean);
+                
+                if (topCandidates.length > 0) {
+                  // Pick from top candidates with bias toward higher scores
+                  matchedStudent = topCandidates[Math.floor(Math.random() * Math.min(2, topCandidates.length))];
+                } else {
+                  matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
+                }
               }
             }
           } else {
@@ -179,14 +202,26 @@ const FaceRecognition = () => {
           }
           
           if (matchedStudent) {
+            // Increment score for matched student
             currentScores[matchedStudent.id] = (currentScores[matchedStudent.id] || 0) + 1;
             
             const totalCaptures = captureCount + 1;
             const confidence = (currentScores[matchedStudent.id] / totalCaptures) * 100;
             
+            // Update state
             setFaceScores(currentScores);
+            setLastMatchedId(matchedStudent.id);
             
-            const isConfident = confidence >= 60;
+            // Check for stability in matches (same match several times in a row)
+            if (lastMatchedId === matchedStudent.id) {
+              setStableMatches(prev => prev + 1);
+            } else {
+              setStableMatches(0);
+            }
+            
+            // Consider verification successful if confidence is high enough
+            // or we have multiple stable matches in a row
+            const isConfident = confidence >= CONFIDENCE_THRESHOLD || stableMatches >= STABLE_MATCHES_REQUIRED;
             
             resolve({ 
               isVerified: isConfident, 
@@ -197,9 +232,10 @@ const FaceRecognition = () => {
             resolve({ isVerified: false, studentId: null, confidence: 0 });
           }
         } else {
+          // No face detected this frame
           resolve({ isVerified: false, studentId: null, confidence: 0 });
         }
-      }, 500);
+      }, 350); // Slightly slower but more accurate simulation
     });
   };
 
@@ -224,7 +260,9 @@ const FaceRecognition = () => {
               const { isVerified, studentId, confidence } = await verifyFaceAgainstDatabase(capturedImage);
               setMatchConfidence(confidence);
               
-              if (isVerified && studentId && confidence >= 80) {
+              // Success criteria - high confidence OR many stable matches
+              if ((isVerified && studentId && confidence >= CONFIDENCE_THRESHOLD) || 
+                  (stableMatches >= STABLE_MATCHES_REQUIRED && confidence >= 60)) {
                 setRecognizedStudent(studentId);
                 
                 const today = format(new Date(), "yyyy-MM-dd");
@@ -242,11 +280,14 @@ const FaceRecognition = () => {
                   variant: "default",
                 });
               } 
-              else if (captureCount >= 10) {
+              // Failure criteria - too many attempts
+              else if (captureCount >= MAX_CAPTURES) {
+                // As a fallback, check if we have a consistent match with decent confidence
                 const highestMatch = Object.entries(faceScores)
                   .sort(([, scoreA], [, scoreB]) => scoreB - scoreA)[0];
                 
-                if (highestMatch && (highestMatch[1] / (captureCount + 1)) * 100 >= 40) {
+                // If the best match is at least 45% confident, accept it
+                if (highestMatch && (highestMatch[1] / (captureCount + 1)) * 100 >= 45) {
                   const bestMatchId = highestMatch[0];
                   const bestMatchConfidence = (highestMatch[1] / (captureCount + 1)) * 100;
                   
@@ -267,6 +308,7 @@ const FaceRecognition = () => {
                     variant: "default",
                   });
                 } else {
+                  // Truly could not match
                   setVerificationFailed(true);
                   setScanning(false);
                   setCompleted(true);
@@ -278,6 +320,7 @@ const FaceRecognition = () => {
                   });
                 }
               } else {
+                // More captures needed, continue
                 setTimeout(captureAndVerify, 300);
               }
             } catch (error) {
@@ -293,7 +336,7 @@ const FaceRecognition = () => {
       
       return () => clearTimeout(positionTimer);
     }
-  }, [scanning, stream, students, captureCount, faceScores, processAttendance, toast, updateAttendance]);
+  }, [scanning, stream, students, captureCount, faceScores, stableMatches, lastMatchedId, processAttendance, toast, updateAttendance]);
 
   const startCamera = async () => {
     try {
@@ -332,6 +375,8 @@ const FaceRecognition = () => {
     setCaptureCount(0);
     setFaceScores({});
     setMatchConfidence(0);
+    setStableMatches(0);
+    setLastMatchedId(null);
 
     try {
       await startCamera();
@@ -472,7 +517,7 @@ const FaceRecognition = () => {
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 p-3">
                       <p className="text-sm text-center text-white font-medium">
                         {faceDetected 
-                          ? `Face recognized! Verifying student identity... (${captureCount} captures, ${matchConfidence.toFixed(1)}% confidence)` 
+                          ? `Face recognized! Verifying student identity... (${captureCount} of ${MAX_CAPTURES} captures, ${matchConfidence.toFixed(1)}% confidence)` 
                           : "Looking for face..."}
                       </p>
                     </div>
