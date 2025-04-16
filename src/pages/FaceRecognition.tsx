@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -21,6 +20,8 @@ const FaceRecognition = () => {
   const [verificationFailed, setVerificationFailed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const blurCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [faceBounds, setFaceBounds] = useState<{x: number, y: number, width: number, height: number} | null>(null);
 
   const stopCamera = () => {
     if (stream) {
@@ -34,6 +35,84 @@ const FaceRecognition = () => {
       stopCamera();
     };
   }, []);
+
+  useEffect(() => {
+    if (!scanning || !stream || !videoRef.current || !blurCanvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = blurCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) return;
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+
+    const simulateFaceDetection = () => {
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2; 
+      const faceWidth = canvas.width * 0.3;
+      const faceHeight = canvas.height * 0.4;
+      
+      return {
+        x: centerX - faceWidth / 2,
+        y: centerY - faceHeight / 2,
+        width: faceWidth,
+        height: faceHeight
+      };
+    };
+
+    const applyBlurEffect = () => {
+      if (!video || !ctx) return;
+      
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      
+      const blurredData = boxBlur(imageData, 15);
+      
+      ctx.putImageData(blurredData, 0, 0);
+      
+      const faceRect = simulateFaceDetection();
+      setFaceBounds(faceRect);
+      
+      ctx.drawImage(
+        video, 
+        faceRect.x, faceRect.y, faceRect.width, faceRect.height,
+        faceRect.x, faceRect.y, faceRect.width, faceRect.height
+      );
+      
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(faceRect.x, faceRect.y, faceRect.width, faceRect.height);
+      
+      animationId = requestAnimationFrame(applyBlurEffect);
+    };
+    
+    const boxBlur = (imageData: ImageData, iterations: number) => {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = imageData.width;
+      tempCanvas.height = imageData.height;
+      
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) return imageData;
+      
+      tempCtx.putImageData(imageData, 0, 0);
+      
+      for (let i = 0; i < iterations; i++) {
+        tempCtx.filter = 'blur(5px)';
+        tempCtx.drawImage(tempCanvas, 0, 0);
+      }
+      
+      return tempCtx.getImageData(0, 0, imageData.width, imageData.height);
+    };
+    
+    let animationId = requestAnimationFrame(applyBlurEffect);
+    
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
+  }, [scanning, stream]);
 
   const captureFrame = () => {
     if (videoRef.current && canvasRef.current) {
@@ -51,41 +130,29 @@ const FaceRecognition = () => {
     return null;
   };
 
-  // Simulate a face verification against the database
   const verifyFaceAgainstDatabase = (capturedImage: string | null): Promise<{ isVerified: boolean, studentId: string | null }> => {
     return new Promise((resolve) => {
-      // Simulate verification processing
       setTimeout(() => {
-        // If no students in database, can't verify
         if (students.length === 0) {
           resolve({ isVerified: false, studentId: null });
           return;
         }
 
-        // Simulation of more accurate face recognition
-        // In a real implementation, this would use actual face recognition algorithms
-        
-        // For simulation, we'll use a more robust detection success rate (70%)
         const detectionSuccess = Math.random() < 0.7;
         
         if (detectionSuccess) {
-          // Only consider students with photos for matching in a real system
           const studentsWithPhotos = students.filter(s => s.photo);
           
           if (studentsWithPhotos.length > 0) {
-            // Select a random student for simulation purposes
-            // In a real implementation, this would compare the captured image with student photos
             const matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
             resolve({ isVerified: true, studentId: matchedStudent.id });
           } else {
-            // No students with photos to match against
             resolve({ isVerified: false, studentId: null });
           }
         } else {
-          // Face detected but no match found in database
           resolve({ isVerified: false, studentId: null });
         }
-      }, 2000); // Simulate processing time
+      }, 2000);
     });
   };
 
@@ -104,13 +171,11 @@ const FaceRecognition = () => {
             const capturedImage = captureFrame();
             
             try {
-              // Verify the captured face against the database
               const { isVerified, studentId } = await verifyFaceAgainstDatabase(capturedImage);
               
               if (isVerified && studentId) {
                 setRecognizedStudent(studentId);
                 
-                // Mark the student as present for today
                 const today = format(new Date(), "yyyy-MM-dd");
                 console.log(`Marking student ${studentId} as present on ${today}`);
                 updateAttendance(studentId, today, 'present');
@@ -126,7 +191,6 @@ const FaceRecognition = () => {
                   variant: "default",
                 });
               } else {
-                // Face detection succeeded but no match in database
                 setVerificationFailed(true);
                 setScanning(false);
                 setCompleted(true);
@@ -183,6 +247,7 @@ const FaceRecognition = () => {
     setFaceDetected(false);
     setFacePosition(null);
     setVerificationFailed(false);
+    setFaceBounds(null);
 
     try {
       await startCamera();
@@ -288,7 +353,7 @@ const FaceRecognition = () => {
                   autoPlay 
                   muted 
                   playsInline 
-                  className="w-full h-full object-cover transform scale-x-[-1]"
+                  className="opacity-0 absolute"
                   style={{ 
                     display: 'block', 
                     maxWidth: '100%', 
@@ -297,15 +362,21 @@ const FaceRecognition = () => {
                   }}
                 />
                 
+                <canvas
+                  ref={blurCanvasRef}
+                  className="w-full h-full object-cover transform scale-x-[-1]"
+                />
+                
                 {scanning && (
                   <div className="absolute inset-0 pointer-events-none">
                     {renderPositionGuidance()}
                     
-                    {/* Face detection overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-56 h-64 border-2 rounded-md
-                                border-primary animate-pulse"></div>
-                    </div>
+                    {!faceBounds && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-56 h-64 border-2 rounded-md
+                                    border-primary animate-pulse"></div>
+                      </div>
+                    )}
                     
                     {faceDetected && (
                       <div className="absolute inset-0 flex items-center justify-center">
