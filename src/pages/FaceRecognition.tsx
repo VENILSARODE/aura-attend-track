@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -28,9 +27,12 @@ const FaceRecognition = () => {
   const [matchConfidence, setMatchConfidence] = useState(0);
   const [stableMatches, setStableMatches] = useState(0);
   const [lastMatchedId, setLastMatchedId] = useState<string | null>(null);
-  const MAX_CAPTURES = 15; // Increase total capture count
-  const CONFIDENCE_THRESHOLD = 70; // Increase confidence threshold
-  const STABLE_MATCHES_REQUIRED = 3; // Require consecutive consistent matches
+  const [consecutiveMatches, setConsecutiveMatches] = useState<{[studentId: string]: number}>({});
+  
+  const MAX_CAPTURES = 20;
+  const CONFIDENCE_THRESHOLD = 75;
+  const STABLE_MATCHES_REQUIRED = 4;
+  const CONSECUTIVE_MATCHES_REQUIRED = 3;
 
   const stopCamera = () => {
     if (stream) {
@@ -79,12 +81,10 @@ const FaceRecognition = () => {
       const faceRect = simulateFaceDetection();
       setFaceBounds(faceRect);
       
-      // Apply a light blur to the entire image first
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const blurredData = boxBlur(imageData, 2); // Reduced blur intensity 
+      const blurredData = boxBlur(imageData, 1);
       ctx.putImageData(blurredData, 0, 0);
       
-      // Draw the face region without blur
       ctx.save();
       ctx.beginPath();
       ctx.rect(faceRect.x, faceRect.y, faceRect.width, faceRect.height);
@@ -92,7 +92,6 @@ const FaceRecognition = () => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.restore();
       
-      // Draw a subtle highlight frame around the face
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.lineWidth = 2;
       ctx.strokeRect(faceRect.x, faceRect.y, faceRect.width, faceRect.height);
@@ -111,7 +110,7 @@ const FaceRecognition = () => {
       tempCtx.putImageData(imageData, 0, 0);
       
       for (let i = 0; i < iterations; i++) {
-        tempCtx.filter = 'blur(2px)'; // Use a lighter blur
+        tempCtx.filter = 'blur(1px)';
         tempCtx.drawImage(tempCanvas, 0, 0);
       }
       
@@ -156,42 +155,72 @@ const FaceRecognition = () => {
           return;
         }
         
-        // Create a copy of current scores to avoid state timing issues
         const currentScores = {...faceScores};
+        const currentConsecutiveMatches = {...consecutiveMatches};
         
-        // Simulate detection with improved accuracy (85% -> 90%)
-        const detectionSuccess = Math.random() < 0.9;
+        const detectionSuccess = Math.random() < 0.95;
         
         if (detectionSuccess) {
           let matchedStudent;
           
-          // Improved matching logic
           if (Object.keys(currentScores).length > 0) {
             const sortedStudents = Object.entries(currentScores)
               .sort(([, scoreA], [, scoreB]) => scoreB - scoreA);
             
-            // More confident matching - require bigger gap between first and second match
             if (sortedStudents.length > 1 && 
-                sortedStudents[0][1] > sortedStudents[1][1] + 3 && 
-                Math.random() < 0.85) {
+                sortedStudents[0][1] > sortedStudents[1][1] * 1.25 &&
+                Math.random() < 0.9) {
               matchedStudent = students.find(s => s.id === sortedStudents[0][0]);
+              
+              if (lastMatchedId === sortedStudents[0][0]) {
+                currentConsecutiveMatches[sortedStudents[0][0]] = 
+                  (currentConsecutiveMatches[sortedStudents[0][0]] || 0) + 1;
+              } else {
+                Object.keys(currentConsecutiveMatches).forEach(id => {
+                  if (id !== sortedStudents[0][0]) {
+                    currentConsecutiveMatches[id] = 0;
+                  }
+                });
+                currentConsecutiveMatches[sortedStudents[0][0]] = 1;
+              }
             } else {
-              // Improve matching by prioritizing recent matches
-              if (lastMatchedId && 
+              const studentWithConsecutiveMatches = Object.entries(currentConsecutiveMatches)
+                .filter(([, count]) => count >= CONSECUTIVE_MATCHES_REQUIRED)
+                .sort(([, countA], [, countB]) => countB - countA)[0];
+              
+              if (studentWithConsecutiveMatches && Math.random() < 0.85) {
+                matchedStudent = students.find(s => s.id === studentWithConsecutiveMatches[0]);
+              } else if (lastMatchedId && 
                   currentScores[lastMatchedId] && 
-                  currentScores[lastMatchedId] > 0 &&
-                  Math.random() < 0.75) {
+                  currentScores[lastMatchedId] > captureCount * 0.3 &&
+                  Math.random() < 0.8) {
                 matchedStudent = students.find(s => s.id === lastMatchedId);
               } else {
-                // Get only students with reasonable match quality
                 const topCandidates = sortedStudents
-                  .filter(([, score]) => score > (captureCount * 0.2)) // Require minimum score
+                  .filter(([, score]) => score > (captureCount * 0.25))
                   .map(([id]) => students.find(s => s.id === id))
                   .filter(Boolean);
                 
                 if (topCandidates.length > 0) {
-                  // Pick from top candidates with bias toward higher scores
-                  matchedStudent = topCandidates[Math.floor(Math.random() * Math.min(2, topCandidates.length))];
+                  const totalScore = topCandidates.reduce((sum, student) => 
+                    sum + (student ? currentScores[student.id] : 0), 0);
+                  
+                  const random = Math.random() * totalScore;
+                  let cumulativeScore = 0;
+                  
+                  for (const candidate of topCandidates) {
+                    if (candidate) {
+                      cumulativeScore += currentScores[candidate.id];
+                      if (random <= cumulativeScore) {
+                        matchedStudent = candidate;
+                        break;
+                      }
+                    }
+                  }
+                  
+                  if (!matchedStudent && topCandidates.length > 0) {
+                    matchedStudent = topCandidates[0];
+                  }
                 } else {
                   matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
                 }
@@ -202,26 +231,26 @@ const FaceRecognition = () => {
           }
           
           if (matchedStudent) {
-            // Increment score for matched student
             currentScores[matchedStudent.id] = (currentScores[matchedStudent.id] || 0) + 1;
             
             const totalCaptures = captureCount + 1;
             const confidence = (currentScores[matchedStudent.id] / totalCaptures) * 100;
             
-            // Update state
             setFaceScores(currentScores);
+            setConsecutiveMatches(currentConsecutiveMatches);
             setLastMatchedId(matchedStudent.id);
             
-            // Check for stability in matches (same match several times in a row)
             if (lastMatchedId === matchedStudent.id) {
               setStableMatches(prev => prev + 1);
             } else {
               setStableMatches(0);
             }
             
-            // Consider verification successful if confidence is high enough
-            // or we have multiple stable matches in a row
-            const isConfident = confidence >= CONFIDENCE_THRESHOLD || stableMatches >= STABLE_MATCHES_REQUIRED;
+            const hasHighConfidence = confidence >= CONFIDENCE_THRESHOLD;
+            const hasStableMatches = stableMatches >= STABLE_MATCHES_REQUIRED;
+            const hasConsecutiveMatches = currentConsecutiveMatches[matchedStudent.id] >= CONSECUTIVE_MATCHES_REQUIRED;
+            
+            const isConfident = hasHighConfidence || hasStableMatches || hasConsecutiveMatches;
             
             resolve({ 
               isVerified: isConfident, 
@@ -232,10 +261,9 @@ const FaceRecognition = () => {
             resolve({ isVerified: false, studentId: null, confidence: 0 });
           }
         } else {
-          // No face detected this frame
           resolve({ isVerified: false, studentId: null, confidence: 0 });
         }
-      }, 350); // Slightly slower but more accurate simulation
+      }, 300);
     });
   };
 
@@ -260,36 +288,64 @@ const FaceRecognition = () => {
               const { isVerified, studentId, confidence } = await verifyFaceAgainstDatabase(capturedImage);
               setMatchConfidence(confidence);
               
-              // Success criteria - high confidence OR many stable matches
-              if ((isVerified && studentId && confidence >= CONFIDENCE_THRESHOLD) || 
-                  (stableMatches >= STABLE_MATCHES_REQUIRED && confidence >= 60)) {
-                setRecognizedStudent(studentId);
+              if (isVerified && studentId) {
+                const currentConsecutiveMatches = consecutiveMatches[studentId] || 0;
                 
-                const today = format(new Date(), "yyyy-MM-dd");
-                console.log(`Marking student ${studentId} as present on ${today}`);
-                updateAttendance(studentId, today, 'present');
-                
-                setScanning(false);
-                setCompleted(true);
-                setVerificationFailed(false);
-                
-                const student = students.find(s => s.id === studentId);
-                toast({
-                  title: "Attendance Marked",
-                  description: `Successfully verified and marked ${student?.name} as present with ${confidence.toFixed(1)}% confidence.`,
-                  variant: "default",
-                });
+                if (confidence >= CONFIDENCE_THRESHOLD || 
+                    stableMatches >= STABLE_MATCHES_REQUIRED || 
+                    currentConsecutiveMatches >= CONSECUTIVE_MATCHES_REQUIRED) {
+                  
+                  setRecognizedStudent(studentId);
+                  
+                  const today = format(new Date(), "yyyy-MM-dd");
+                  console.log(`Marking student ${studentId} as present on ${today}`);
+                  updateAttendance(studentId, today, 'present');
+                  
+                  setScanning(false);
+                  setCompleted(true);
+                  setVerificationFailed(false);
+                  
+                  const student = students.find(s => s.id === studentId);
+                  toast({
+                    title: "Attendance Marked",
+                    description: `Successfully verified and marked ${student?.name} as present with ${confidence.toFixed(1)}% confidence.`,
+                    variant: "default",
+                  });
+                } else {
+                  setTimeout(captureAndVerify, 300);
+                }
               } 
-              // Failure criteria - too many attempts
               else if (captureCount >= MAX_CAPTURES) {
-                // As a fallback, check if we have a consistent match with decent confidence
                 const highestMatch = Object.entries(faceScores)
                   .sort(([, scoreA], [, scoreB]) => scoreB - scoreA)[0];
                 
-                // If the best match is at least 45% confident, accept it
-                if (highestMatch && (highestMatch[1] / (captureCount + 1)) * 100 >= 45) {
+                const highestConsecutiveMatch = Object.entries(consecutiveMatches)
+                  .filter(([, count]) => count >= CONSECUTIVE_MATCHES_REQUIRED)
+                  .sort(([, countA], [, countB]) => countB - countA)[0];
+                
+                if (highestConsecutiveMatch) {
+                  const bestMatchId = highestConsecutiveMatch[0];
+                  const bestMatchConfidence = (faceScores[bestMatchId] / captureCount) * 100;
+                  
+                  setRecognizedStudent(bestMatchId);
+                  
+                  const today = format(new Date(), "yyyy-MM-dd");
+                  console.log(`Marking student ${bestMatchId} as present on ${today}`);
+                  updateAttendance(bestMatchId, today, 'present');
+                  
+                  setScanning(false);
+                  setCompleted(true);
+                  setVerificationFailed(false);
+                  
+                  const student = students.find(s => s.id === bestMatchId);
+                  toast({
+                    title: "Attendance Marked",
+                    description: `Verified and marked ${student?.name} as present with ${bestMatchConfidence.toFixed(1)}% confidence.`,
+                    variant: "default",
+                  });
+                } else if (highestMatch && (highestMatch[1] / captureCount) * 100 >= 50) {
                   const bestMatchId = highestMatch[0];
-                  const bestMatchConfidence = (highestMatch[1] / (captureCount + 1)) * 100;
+                  const bestMatchConfidence = (highestMatch[1] / captureCount) * 100;
                   
                   setRecognizedStudent(bestMatchId);
                   
@@ -308,7 +364,6 @@ const FaceRecognition = () => {
                     variant: "default",
                   });
                 } else {
-                  // Truly could not match
                   setVerificationFailed(true);
                   setScanning(false);
                   setCompleted(true);
@@ -320,7 +375,6 @@ const FaceRecognition = () => {
                   });
                 }
               } else {
-                // More captures needed, continue
                 setTimeout(captureAndVerify, 300);
               }
             } catch (error) {
@@ -336,7 +390,7 @@ const FaceRecognition = () => {
       
       return () => clearTimeout(positionTimer);
     }
-  }, [scanning, stream, students, captureCount, faceScores, stableMatches, lastMatchedId, processAttendance, toast, updateAttendance]);
+  }, [scanning, stream, students, captureCount, faceScores, stableMatches, lastMatchedId, consecutiveMatches, processAttendance, toast, updateAttendance]);
 
   const startCamera = async () => {
     try {
@@ -394,7 +448,7 @@ const FaceRecognition = () => {
     
     switch(facePosition) {
       case "look_forward":
-        message = "Look straight ahead at the camera";
+        message = "Look directly at the camera";
         Icon = Camera;
         break;
       case "center_face":
