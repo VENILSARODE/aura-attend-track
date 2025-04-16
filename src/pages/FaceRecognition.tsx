@@ -67,20 +67,19 @@ const FaceRecognition = () => {
       
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      
-      const blurredData = boxBlur(imageData, 15);
-      
-      ctx.putImageData(blurredData, 0, 0);
-      
       const faceRect = simulateFaceDetection();
       setFaceBounds(faceRect);
       
-      ctx.drawImage(
-        video, 
-        faceRect.x, faceRect.y, faceRect.width, faceRect.height,
-        faceRect.x, faceRect.y, faceRect.width, faceRect.height
-      );
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const blurredData = boxBlur(imageData, 5);
+      ctx.putImageData(blurredData, 0, 0);
+      
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(faceRect.x, faceRect.y, faceRect.width, faceRect.height);
+      ctx.clip();
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
       
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.lineWidth = 2;
@@ -100,7 +99,7 @@ const FaceRecognition = () => {
       tempCtx.putImageData(imageData, 0, 0);
       
       for (let i = 0; i < iterations; i++) {
-        tempCtx.filter = 'blur(5px)';
+        tempCtx.filter = 'blur(3px)';
         tempCtx.drawImage(tempCanvas, 0, 0);
       }
       
