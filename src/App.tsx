@@ -14,6 +14,7 @@ import FaceRecognition from "./pages/FaceRecognition";
 import DataStore from "./pages/DataStore";
 import Messages from "./pages/Messages";
 import Timetable from "./pages/Timetable";
+import CCTV from "./pages/CCTV";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
                 <Route path="/data-store" element={<DataStore />} />
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/timetable" element={<Timetable />} />
+                <Route path="/cctv" element={<CCTV />} />
               </Route>
               
               {/* Catch-all route */}

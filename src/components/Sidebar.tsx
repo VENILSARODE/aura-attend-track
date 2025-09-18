@@ -1,6 +1,6 @@
 
 import { useNavigate } from "react-router-dom";
-import { Home, Upload, Camera, Database, MessageSquare, Calendar, LogOut } from "lucide-react";
+import { Home, Upload, Camera, Database, MessageSquare, Calendar, Monitor, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ export const Sidebar = () => {
     { label: "Data Store", icon: Database, path: "/data-store" },
     { label: "Messages", icon: MessageSquare, path: "/messages" },
     { label: "Timetable", icon: Calendar, path: "/timetable" },
+    { label: "CCTV", icon: Monitor, path: "/cctv" },
   ];
 
   const handleNavigation = (path: string) => {
