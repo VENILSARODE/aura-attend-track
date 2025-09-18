@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Settings, Wifi, WifiOff, Trash2, MoreVertical } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Settings, Wifi, WifiOff, Trash2, MoreVertical, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 interface CCTVCamera {
   id: string;
@@ -19,6 +20,9 @@ interface CCTVCamera {
 }
 
 const CCTV = () => {
+  const { toast } = useToast();
+  const CAMERAS_PER_PAGE = 12;
+  const MAX_CAMERAS = 100;
   const [cameras, setCameras] = useState<CCTVCamera[]>([
     {
       id: "1",
@@ -45,20 +49,91 @@ const CCTV = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [cameraToDelete, setCameraToDelete] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // IP address validation
+  const validateIP = (ip: string) => {
+    const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return ipRegex.test(ip);
+  };
+
+  // Check if IP already exists
+  const isIPDuplicate = (ip: string, port: number) => {
+    return cameras.some(camera => camera.ipAddress === ip && camera.port === port);
+  };
+
+  // Filtered cameras based on search
+  const filteredCameras = useMemo(() => {
+    return cameras.filter(camera => 
+      camera.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      camera.ipAddress.includes(searchQuery)
+    );
+  }, [cameras, searchQuery]);
+
+  // Paginated cameras
+  const paginatedCameras = useMemo(() => {
+    const startIndex = (currentPage - 1) * CAMERAS_PER_PAGE;
+    return filteredCameras.slice(startIndex, startIndex + CAMERAS_PER_PAGE);
+  }, [filteredCameras, currentPage]);
+
+  const totalPages = Math.ceil(filteredCameras.length / CAMERAS_PER_PAGE);
 
   const handleAddCamera = () => {
-    if (newCamera.name && newCamera.ipAddress) {
-      const camera: CCTVCamera = {
-        id: Date.now().toString(),
-        name: newCamera.name,
-        ipAddress: newCamera.ipAddress,
-        port: newCamera.port,
-        status: "offline"
-      };
-      setCameras([...cameras, camera]);
-      setNewCamera({ name: "", ipAddress: "", port: 8080 });
-      setIsAddDialogOpen(false);
+    // Validate required fields
+    if (!newCamera.name.trim() || !newCamera.ipAddress.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
     }
+
+    // Validate IP address format
+    if (!validateIP(newCamera.ipAddress)) {
+      toast({
+        title: "Invalid IP Address", 
+        description: "Please enter a valid IP address (e.g., 192.168.1.100)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check for duplicate IP and port
+    if (isIPDuplicate(newCamera.ipAddress, newCamera.port)) {
+      toast({
+        title: "Duplicate Camera",
+        description: "A camera with this IP address and port already exists",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check camera limit
+    if (cameras.length >= MAX_CAMERAS) {
+      toast({
+        title: "Camera Limit Reached",
+        description: `Maximum of ${MAX_CAMERAS} cameras allowed`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const camera: CCTVCamera = {
+      id: Date.now().toString(),
+      name: newCamera.name.trim(),
+      ipAddress: newCamera.ipAddress.trim(),
+      port: newCamera.port,
+      status: "offline"
+    };
+    setCameras([...cameras, camera]);
+    setNewCamera({ name: "", ipAddress: "", port: 8080 });
+    setIsAddDialogOpen(false);
+    toast({
+      title: "Camera Added",
+      description: `${camera.name} has been successfully added`,
+    });
   };
 
   const toggleCameraStatus = (id: string) => {
@@ -83,6 +158,26 @@ const CCTV = () => {
   };
 
   const quickAddCamera = (name: string, ip: string) => {
+    // Check camera limit
+    if (cameras.length >= MAX_CAMERAS) {
+      toast({
+        title: "Camera Limit Reached",
+        description: `Maximum of ${MAX_CAMERAS} cameras allowed`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check for duplicate IP
+    if (isIPDuplicate(ip, 8080)) {
+      toast({
+        title: "Duplicate Camera",
+        description: "A camera with this IP address already exists",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const camera: CCTVCamera = {
       id: Date.now().toString(),
       name: name,
@@ -91,6 +186,10 @@ const CCTV = () => {
       status: "offline"
     };
     setCameras([...cameras, camera]);
+    toast({
+      title: "Camera Added",
+      description: `${name} has been successfully added`,
+    });
   };
 
   return (
@@ -98,12 +197,17 @@ const CCTV = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-foreground">CCTV Management</h1>
-          <p className="text-muted-foreground">Monitor and manage your surveillance cameras</p>
+          <p className="text-muted-foreground">
+            Monitor and manage your surveillance cameras ({cameras.length}/{MAX_CAMERAS})
+          </p>
         </div>
         
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90">
+            <Button 
+              className="bg-primary hover:bg-primary/90"
+              disabled={cameras.length >= MAX_CAMERAS}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add Camera
             </Button>
@@ -126,11 +230,12 @@ const CCTV = () => {
                   onChange={(e) => setNewCamera({ ...newCamera, name: e.target.value })}
                   className="col-span-3"
                   placeholder="e.g., Main Entrance"
+                  maxLength={50}
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="ip" className="text-right">
-                  IP Address
+                  IP Address*
                 </Label>
                 <Input
                   id="ip"
@@ -138,11 +243,12 @@ const CCTV = () => {
                   onChange={(e) => setNewCamera({ ...newCamera, ipAddress: e.target.value })}
                   className="col-span-3"
                   placeholder="192.168.1.100"
+                  pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="port" className="text-right">
-                  Port
+                  Port*
                 </Label>
                 <Input
                   id="port"
@@ -151,6 +257,8 @@ const CCTV = () => {
                   onChange={(e) => setNewCamera({ ...newCamera, port: parseInt(e.target.value) || 8080 })}
                   className="col-span-3"
                   placeholder="8080"
+                  min="1"
+                  max="65535"
                 />
               </div>
             </div>
@@ -166,32 +274,48 @@ const CCTV = () => {
         </Dialog>
       </div>
 
-      {/* Quick Add Options */}
-      <div className="flex flex-wrap gap-2">
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => quickAddCamera("Classroom B", "192.168.1.103")}
-          className="text-xs"
-        >
-          + Quick Add: Classroom B
-        </Button>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => quickAddCamera("Library", "192.168.1.104")}
-          className="text-xs"
-        >
-          + Quick Add: Library
-        </Button>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => quickAddCamera("Cafeteria", "192.168.1.105")}
-          className="text-xs"
-        >
-          + Quick Add: Cafeteria
-        </Button>
+      {/* Search and Quick Add */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search cameras by name or IP address..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => quickAddCamera("Classroom B", "192.168.1.103")}
+            className="text-xs"
+            disabled={cameras.length >= MAX_CAMERAS}
+          >
+            + Classroom B
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => quickAddCamera("Library", "192.168.1.104")}
+            className="text-xs"
+            disabled={cameras.length >= MAX_CAMERAS}
+          >
+            + Library
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => quickAddCamera("Cafeteria", "192.168.1.105")}
+            className="text-xs"
+            disabled={cameras.length >= MAX_CAMERAS}
+          >
+            + Cafeteria
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="grid" className="w-full">
@@ -201,8 +325,20 @@ const CCTV = () => {
         </TabsList>
         
         <TabsContent value="grid" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cameras.map((camera) => (
+          {filteredCameras.length === 0 ? (
+            <div className="text-center py-12">
+              <Settings className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                {cameras.length === 0 ? "No Cameras Added" : "No Cameras Found"}
+              </h3>
+              <p className="text-muted-foreground">
+                {cameras.length === 0 ? "Add your first camera to get started" : "Try adjusting your search terms"}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {paginatedCameras.map((camera) => (
               <Card key={camera.id} className="bg-card border-border">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -271,13 +407,40 @@ const CCTV = () => {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+                ))}
+              </div>
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages} ({filteredCameras.length} cameras)
+                  </span>
+                  <Button
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </TabsContent>
         
         <TabsContent value="live" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {cameras.filter(camera => camera.status === "online").map((camera) => (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredCameras.filter(camera => camera.status === "online").slice(0, 9).map((camera) => (
               <Card key={camera.id} className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="text-card-foreground">{camera.name}</CardTitle>
@@ -297,7 +460,7 @@ const CCTV = () => {
             ))}
           </div>
           
-          {cameras.filter(camera => camera.status === "online").length === 0 && (
+          {filteredCameras.filter(camera => camera.status === "online").length === 0 && (
             <div className="text-center py-12">
               <WifiOff className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No Live Cameras</h3>
