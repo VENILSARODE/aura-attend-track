@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { DataProvider } from "./context/DataContext";
+import { AttendanceProvider } from "./context/AttendanceContext";
 import AppLayout from "./components/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -15,6 +16,7 @@ import DataStore from "./pages/DataStore";
 import Messages from "./pages/Messages";
 import Timetable from "./pages/Timetable";
 import CCTV from "./pages/CCTV";
+import AttendanceReport from "./pages/AttendanceReport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,7 +26,8 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <DataProvider>
-          <TooltipProvider>
+          <AttendanceProvider>
+            <TooltipProvider>
             <Toaster />
             <Sonner />
             <Routes>
@@ -43,12 +46,14 @@ const App = () => (
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/timetable" element={<Timetable />} />
                 <Route path="/cctv" element={<CCTV />} />
+                <Route path="/attendance-report" element={<AttendanceReport />} />
               </Route>
               
               {/* Catch-all route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </TooltipProvider>
+            </TooltipProvider>
+          </AttendanceProvider>
         </DataProvider>
       </AuthProvider>
     </QueryClientProvider>

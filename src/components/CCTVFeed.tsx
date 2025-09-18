@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, Users, Maximize2, WifiOff } from "lucide-react";
+import { Play, Pause, Users, Maximize2, WifiOff, Check, X, UserCheck } from "lucide-react";
+import { faceVerificationService, DetectedFace, StoredPerson } from "@/utils/faceVerification";
+import { useData } from "@/context/DataContext";
+import { useAttendance } from "@/context/AttendanceContext";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Face {
   id: number;
@@ -20,6 +24,7 @@ interface CCTVFeedProps {
   port: number;
   status: "online" | "offline";
   isLiveView?: boolean;
+  cameraId?: string;
 }
 
 const CCTVFeed: React.FC<CCTVFeedProps> = ({ 
@@ -27,12 +32,41 @@ const CCTVFeed: React.FC<CCTVFeedProps> = ({
   ipAddress, 
   port, 
   status, 
-  isLiveView = false 
+  isLiveView = false,
+  cameraId = "unknown"
 }) => {
+  const { students } = useData();
+  const { markAttendance } = useAttendance();
+  const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPlaying, setIsPlaying] = useState(status === "online");
-  const [faces, setFaces] = useState<Face[]>([]);
+  const [faces, setFaces] = useState<DetectedFace[]>([]);
   const [frameCount, setFrameCount] = useState(0);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Initialize face verification service
+  useEffect(() => {
+    const initService = async () => {
+      try {
+        await faceVerificationService.initialize();
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('Failed to initialize face verification:', error);
+      }
+    };
+    
+    if (status === "online") {
+      initService();
+    }
+  }, [status]);
+
+  // Convert stored data to person format for face verification
+  const storedPersons: StoredPerson[] = students.map(student => ({
+    id: student.id.toString(),
+    name: student.name,
+    role: 'Student', // Default role for all students
+    faceEmbedding: undefined // Will be generated on first use
+  }));
   
   // Simulate camera feed and face detection
   useEffect(() => {
@@ -71,48 +105,91 @@ const CCTVFeed: React.FC<CCTVFeedProps> = ({
       // Simulate moving objects (people)
       const time = frameCount * 0.1;
       
-      // Generate simulated faces
-      const simulatedFaces: Face[] = [
-        {
-          id: 1,
-          x: 120 + Math.sin(time) * 30,
-          y: 80 + Math.cos(time * 0.5) * 20,
-          width: 60,
-          height: 80,
-          confidence: 0.85 + Math.sin(time) * 0.1,
-          name: "John Doe"
-        },
-        {
-          id: 2,
-          x: 200 + Math.cos(time * 0.7) * 40,
-          y: 120 + Math.sin(time * 0.3) * 25,
-          width: 55,
-          height: 75,
-          confidence: 0.78 + Math.cos(time) * 0.1,
-          name: "Jane Smith"
+      // Generate detected faces
+      const detectedFaces = faceVerificationService.detectFacesInFrame(frameCount, cameraId);
+      
+      // Verify faces against stored data
+      const verifiedFaces = faceVerificationService.verifyFaces(detectedFaces, storedPersons);
+      
+      setFaces(verifiedFaces);
+
+      // Draw face detection rectangles and verification results
+      verifiedFaces.forEach((face) => {
+        const isVerified = !!face.verifiedPerson;
+        
+        // Face bounding box - green for verified, yellow for unverified, red for low confidence
+        if (isVerified) {
+          ctx.strokeStyle = '#00ff00'; // Green for verified
+        } else if (face.confidence > 0.7) {
+          ctx.strokeStyle = '#ffaa00'; // Orange for unverified but confident detection
+        } else {
+          ctx.strokeStyle = '#ff0000'; // Red for low confidence
         }
-      ];
-
-      setFaces(simulatedFaces);
-
-      // Draw face detection rectangles
-      simulatedFaces.forEach((face) => {
-        // Face bounding box
-        ctx.strokeStyle = face.confidence > 0.8 ? '#00ff00' : '#ffff00';
+        
         ctx.lineWidth = 2;
         ctx.strokeRect(face.x, face.y, face.width, face.height);
 
+        // Verification indicator
+        if (isVerified) {
+          // Green checkmark for verified
+          ctx.fillStyle = '#00ff00';
+          ctx.fillRect(face.x + face.width - 20, face.y, 20, 20);
+          
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(face.x + face.width - 16, face.y + 8);
+          ctx.lineTo(face.x + face.width - 12, face.y + 12);
+          ctx.lineTo(face.x + face.width - 6, face.y + 4);
+          ctx.stroke();
+        } else {
+          // Red X for unverified
+          ctx.fillStyle = '#ff0000';
+          ctx.fillRect(face.x + face.width - 20, face.y, 20, 20);
+          
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(face.x + face.width - 16, face.y + 4);
+          ctx.lineTo(face.x + face.width - 6, face.y + 14);
+          ctx.moveTo(face.x + face.width - 6, face.y + 4);
+          ctx.lineTo(face.x + face.width - 16, face.y + 14);
+          ctx.stroke();
+        }
+
         // Face label background
-        const labelText = `${face.name || 'Unknown'} (${Math.round(face.confidence * 100)}%)`;
+        const labelText = face.verifiedPerson 
+          ? `${face.verifiedPerson.name} (${Math.round(face.verifiedPerson.confidence * 100)}%)`
+          : `Unknown (${Math.round(face.confidence * 100)}%)`;
+        
         ctx.font = '12px Arial';
         const textWidth = ctx.measureText(labelText).width;
         
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillStyle = isVerified ? 'rgba(0, 255, 0, 0.8)' : 'rgba(255, 0, 0, 0.8)';
         ctx.fillRect(face.x, face.y - 25, textWidth + 10, 20);
 
         // Face label text
         ctx.fillStyle = '#ffffff';
         ctx.fillText(labelText, face.x + 5, face.y - 10);
+
+        // Mark attendance for verified faces
+        if (isVerified && face.verifiedPerson && frameCount % 300 === 0) { // Every 10 seconds
+          markAttendance({
+            personId: face.verifiedPerson.id,
+            personName: face.verifiedPerson.name,
+            role: face.verifiedPerson.role,
+            timestamp: new Date(),
+            cameraId: cameraId,
+            cameraName: cameraName,
+            confidence: face.verifiedPerson.confidence,
+            verified: true
+          });
+          
+          toast({
+            title: "Attendance Marked",
+            description: `${face.verifiedPerson.name} attendance recorded from ${cameraName}`,
+          });
+        }
       });
 
       // Camera info overlay
@@ -194,28 +271,49 @@ const CCTVFeed: React.FC<CCTVFeedProps> = ({
           </div>
         )}
 
-        {/* Face count */}
+        {/* Face count with verification status */}
         {faces.length > 0 && (
-          <div className="absolute top-2 right-2">
+          <div className="absolute top-2 right-2 flex gap-1">
             <Badge variant="secondary" className="bg-black/50 text-white">
               <Users className="h-3 w-3 mr-1" />
               {faces.length}
             </Badge>
+            {faces.filter(f => f.verifiedPerson).length > 0 && (
+              <Badge variant="default" className="bg-green-600/80 text-white">
+                <UserCheck className="h-3 w-3 mr-1" />
+                {faces.filter(f => f.verifiedPerson).length}
+              </Badge>
+            )}
           </div>
         )}
       </div>
 
-      {/* Camera details */}
+      {/* Camera details with verification stats */}
       {!isLiveView && (
-        <div className="mt-2 text-xs text-muted-foreground">
-          <div className="flex justify-between items-center">
+        <div className="mt-2 space-y-1">
+          <div className="text-xs text-muted-foreground flex justify-between items-center">
             <span>{cameraName}</span>
             {faces.length > 0 && (
-              <span className="text-primary font-medium">
-                {faces.length} face{faces.length > 1 ? 's' : ''} detected
-              </span>
+              <div className="flex gap-2">
+                <span className="text-primary font-medium">
+                  {faces.length} detected
+                </span>
+                {faces.filter(f => f.verifiedPerson).length > 0 && (
+                  <span className="text-green-600 font-medium flex items-center gap-1">
+                    <Check className="h-3 w-3" />
+                    {faces.filter(f => f.verifiedPerson).length} verified
+                  </span>
+                )}
+              </div>
             )}
           </div>
+          
+          {/* Show recent verifications */}
+          {faces.filter(f => f.verifiedPerson).slice(0, 2).map(face => (
+            <div key={face.id} className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+              ✓ {face.verifiedPerson?.name} ({face.verifiedPerson?.role})
+            </div>
+          ))}
         </div>
       )}
     </div>

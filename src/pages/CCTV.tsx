@@ -382,6 +382,7 @@ const CCTV = () => {
                     ipAddress={camera.ipAddress}
                     port={camera.port}
                     status={camera.status}
+                    cameraId={camera.id}
                   />
                   
                   <div className="flex gap-2">
@@ -445,6 +446,7 @@ const CCTV = () => {
                     port={camera.port}
                     status={camera.status}
                     isLiveView={true}
+                    cameraId={camera.id}
                   />
                 </CardContent>
               </Card>
