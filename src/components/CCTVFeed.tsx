@@ -61,12 +61,12 @@ const CCTVFeed: React.FC<CCTVFeedProps> = ({
   }, [status]);
 
   // Convert stored data to person format for face verification
-  const storedPersons: StoredPerson[] = students.map(student => ({
+  const storedPersons: StoredPerson[] = students?.map(student => ({
     id: student.id.toString(),
     name: student.name,
     role: 'Student', // Default role for all students
     faceEmbedding: undefined // Will be generated on first use
-  }));
+  })) || [];
   
   // Simulate camera feed and face detection
   useEffect(() => {
