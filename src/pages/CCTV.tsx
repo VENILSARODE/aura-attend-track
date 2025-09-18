@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Settings, Wifi, WifiOff } from "lucide-react";
+import { Plus, Settings, Wifi, WifiOff, Trash2, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface CCTVCamera {
   id: string;
@@ -41,6 +43,8 @@ const CCTV = () => {
   });
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [cameraToDelete, setCameraToDelete] = useState<string | null>(null);
 
   const handleAddCamera = () => {
     if (newCamera.name && newCamera.ipAddress) {
@@ -63,6 +67,30 @@ const CCTV = () => {
         ? { ...camera, status: camera.status === "online" ? "offline" : "online" }
         : camera
     ));
+  };
+
+  const handleDeleteCamera = (id: string) => {
+    setCameraToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteCamera = () => {
+    if (cameraToDelete) {
+      setCameras(cameras.filter(camera => camera.id !== cameraToDelete));
+      setCameraToDelete(null);
+      setDeleteConfirmOpen(false);
+    }
+  };
+
+  const quickAddCamera = (name: string, ip: string) => {
+    const camera: CCTVCamera = {
+      id: Date.now().toString(),
+      name: name,
+      ipAddress: ip,
+      port: 8080,
+      status: "offline"
+    };
+    setCameras([...cameras, camera]);
   };
 
   return (
@@ -138,6 +166,34 @@ const CCTV = () => {
         </Dialog>
       </div>
 
+      {/* Quick Add Options */}
+      <div className="flex flex-wrap gap-2">
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => quickAddCamera("Classroom B", "192.168.1.103")}
+          className="text-xs"
+        >
+          + Quick Add: Classroom B
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => quickAddCamera("Library", "192.168.1.104")}
+          className="text-xs"
+        >
+          + Quick Add: Library
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => quickAddCamera("Cafeteria", "192.168.1.105")}
+          className="text-xs"
+        >
+          + Quick Add: Cafeteria
+        </Button>
+      </div>
+
       <Tabs defaultValue="grid" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="grid">Camera Grid</TabsTrigger>
@@ -151,17 +207,32 @@ const CCTV = () => {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg text-card-foreground">{camera.name}</CardTitle>
-                    <Badge 
-                      variant={camera.status === "online" ? "default" : "destructive"}
-                      className="flex items-center gap-1"
-                    >
-                      {camera.status === "online" ? (
-                        <Wifi className="h-3 w-3" />
-                      ) : (
-                        <WifiOff className="h-3 w-3" />
-                      )}
-                      {camera.status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge 
+                        variant={camera.status === "online" ? "default" : "destructive"}
+                        className="flex items-center gap-1"
+                      >
+                        {camera.status === "online" ? (
+                          <Wifi className="h-3 w-3" />
+                        ) : (
+                          <WifiOff className="h-3 w-3" />
+                        )}
+                        {camera.status}
+                      </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleDeleteCamera(camera.id)} className="text-destructive">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Camera
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                   <CardDescription>
                     {camera.ipAddress}:{camera.port}
@@ -235,6 +306,26 @@ const CCTV = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Camera</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this camera? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteCamera} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
