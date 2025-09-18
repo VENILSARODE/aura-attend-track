@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Plus, Settings, Wifi, WifiOff, Trash2, MoreVertical, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Plus, Settings, Wifi, WifiOff, Trash2, MoreVertical, Search, ChevronLeft, ChevronRight, Play, Pause, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
+import CCTVFeed from "@/components/CCTVFeed";
 
 interface CCTVCamera {
   id: string;
@@ -376,21 +377,12 @@ const CCTV = () => {
                 </CardHeader>
                 
                 <CardContent className="space-y-4">
-                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                    {camera.status === "online" ? (
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mb-2">
-                          <Settings className="h-6 w-6 text-primary" />
-                        </div>
-                        <p className="text-sm text-muted-foreground">Camera Feed</p>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <WifiOff className="h-12 w-12 text-muted-foreground mb-2 mx-auto" />
-                        <p className="text-sm text-muted-foreground">Camera Offline</p>
-                      </div>
-                    )}
-                  </div>
+                  <CCTVFeed
+                    cameraName={camera.name}
+                    ipAddress={camera.ipAddress}
+                    port={camera.port}
+                    status={camera.status}
+                  />
                   
                   <div className="flex gap-2">
                     <Button
@@ -447,14 +439,13 @@ const CCTV = () => {
                   <CardDescription>{camera.ipAddress}:{camera.port}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-2">
-                        <Settings className="h-8 w-8 text-primary animate-pulse" />
-                      </div>
-                      <p className="text-sm text-muted-foreground">Live Feed - {camera.name}</p>
-                    </div>
-                  </div>
+                  <CCTVFeed
+                    cameraName={camera.name}
+                    ipAddress={camera.ipAddress}
+                    port={camera.port}
+                    status={camera.status}
+                    isLiveView={true}
+                  />
                 </CardContent>
               </Card>
             ))}
