@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CCTVCamera, CCTVFolder, DEFAULT_FOLDER } from "@/types/cctv";
+import { CCTVCamera, CCTVFolder } from "@/types/cctv";
 import CCTVCameraCard from "@/components/CCTVCameraCard";
 import CCTVAddCameraDialog from "@/components/CCTVAddCameraDialog";
 import CCTVFolderManager from "@/components/CCTVFolderManager";
@@ -26,7 +26,7 @@ const CCTV = () => {
   const [cameraToDelete, setCameraToDelete] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(["default"]));
+  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
 
   // IP address validation
   const validateIP = (ip: string) => {
@@ -49,10 +49,9 @@ const CCTV = () => {
 
   // Group cameras by folder
   const camerasByFolder = useMemo(() => {
-    const allFolders = [DEFAULT_FOLDER, ...folders];
     const grouped: Record<string, { folder: CCTVFolder; cameras: CCTVCamera[] }> = {};
     
-    allFolders.forEach(folder => {
+    folders.forEach(folder => {
       grouped[folder.id] = {
         folder,
         cameras: filteredCameras.filter(camera => camera.folderId === folder.id)
@@ -160,7 +159,7 @@ const CCTV = () => {
     });
   };
 
-  const quickAddCamera = (name: string, ip: string, folderId: string = DEFAULT_FOLDER.id) => {
+  const quickAddCamera = (name: string, ip: string, folderId: string = folders[0]?.id || "") => {
     // Check camera limit
     if (cameras.length >= MAX_CAMERAS) {
       toast({
@@ -223,16 +222,16 @@ const CCTV = () => {
   };
 
   const handleDeleteFolder = (id: string) => {
-    // Move all cameras from this folder to default
+    // Remove cameras from deleted folder
     setCameras(cameras.map(camera => 
       camera.folderId === id 
-        ? { ...camera, folderId: DEFAULT_FOLDER.id }
+        ? { ...camera, folderId: "" }
         : camera
     ));
     setFolders(folders.filter(folder => folder.id !== id));
     toast({
       title: "Folder Deleted",
-      description: "Folder deleted and cameras moved to Uncategorized",
+      description: "Folder deleted and cameras unassigned",
     });
   };
 
@@ -246,7 +245,7 @@ const CCTV = () => {
     setOpenFolders(newOpenFolders);
   };
 
-  const allFolders = [DEFAULT_FOLDER, ...folders];
+  const allFolders = folders;
 
   return (
     <div className="p-6 space-y-6">
@@ -338,47 +337,53 @@ const CCTV = () => {
           />
           
           <div className="space-y-4">
-            {Object.values(camerasByFolder).map(({ folder, cameras: folderCameras }) => (
-              <Collapsible
-                key={folder.id}
-                open={openFolders.has(folder.id)}
-                onOpenChange={() => toggleFolder(folder.id)}
-              >
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-between p-4 h-auto">
-                    <div className="flex items-center gap-2">
-                      {openFolders.has(folder.id) ? (
-                        <FolderOpen className="h-5 w-5" />
-                      ) : (
-                        <Folder className="h-5 w-5" />
-                      )}
-                      <span className="font-medium">{folder.name}</span>
-                      <span className="text-sm text-muted-foreground">({folderCameras.length})</span>
-                    </div>
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-4 pt-4">
-                  {folderCameras.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No cameras in this folder
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {folderCameras.map((camera) => (
-                        <CCTVCameraCard
-                          key={camera.id}
-                          camera={camera}
-                          folders={allFolders}
-                          onToggleStatus={toggleCameraStatus}
-                          onDelete={handleDeleteCamera}
-                          onMoveToFolder={moveToFolder}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleContent>
-              </Collapsible>
-            ))}
+            {folders.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No folders created yet. Create a folder to organize your cameras.
+              </div>
+            ) : (
+              Object.values(camerasByFolder).map(({ folder, cameras: folderCameras }) => (
+                <Collapsible
+                  key={folder.id}
+                  open={openFolders.has(folder.id)}
+                  onOpenChange={() => toggleFolder(folder.id)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="w-full justify-between p-4 h-auto">
+                      <div className="flex items-center gap-2">
+                        {openFolders.has(folder.id) ? (
+                          <FolderOpen className="h-5 w-5" />
+                        ) : (
+                          <Folder className="h-5 w-5" />
+                        )}
+                        <span className="font-medium">{folder.name}</span>
+                        <span className="text-sm text-muted-foreground">({folderCameras.length})</span>
+                      </div>
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-4 pt-4">
+                    {folderCameras.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No cameras in this folder
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {folderCameras.map((camera) => (
+                          <CCTVCameraCard
+                            key={camera.id}
+                            camera={camera}
+                            folders={allFolders}
+                            onToggleStatus={toggleCameraStatus}
+                            onDelete={handleDeleteCamera}
+                            onMoveToFolder={moveToFolder}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              ))
+            )}
           </div>
         </TabsContent>
         

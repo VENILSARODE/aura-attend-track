@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CCTVFolder, DEFAULT_FOLDER } from "@/types/cctv";
+import { CCTVFolder } from "@/types/cctv";
 
 interface CCTVAddCameraDialogProps {
   folders: CCTVFolder[];
@@ -20,15 +20,13 @@ const CCTVAddCameraDialog = ({ folders, isOpen, onOpenChange, onAddCamera, disab
     name: "",
     ipAddress: "",
     port: 8080,
-    folderId: DEFAULT_FOLDER.id
+    folderId: folders[0]?.id || ""
   });
 
   const handleSubmit = () => {
     onAddCamera(newCamera.name, newCamera.ipAddress, newCamera.port, newCamera.folderId);
-    setNewCamera({ name: "", ipAddress: "", port: 8080, folderId: DEFAULT_FOLDER.id });
+    setNewCamera({ name: "", ipAddress: "", port: 8080, folderId: folders[0]?.id || "" });
   };
-
-  const allFolders = [DEFAULT_FOLDER, ...folders];
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -94,12 +92,16 @@ const CCTVAddCameraDialog = ({ folders, isOpen, onOpenChange, onAddCamera, disab
             <Label htmlFor="folder" className="text-right">
               Folder
             </Label>
-            <Select value={newCamera.folderId} onValueChange={(value) => setNewCamera({ ...newCamera, folderId: value })}>
+            <Select 
+              value={newCamera.folderId} 
+              onValueChange={(value) => setNewCamera({ ...newCamera, folderId: value })}
+              disabled={folders.length === 0}
+            >
               <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select folder" />
+                <SelectValue placeholder={folders.length === 0 ? "No folders available" : "Select folder (optional)"} />
               </SelectTrigger>
               <SelectContent>
-                {allFolders.map((folder) => (
+                {folders.map((folder) => (
                   <SelectItem key={folder.id} value={folder.id}>
                     {folder.name}
                   </SelectItem>

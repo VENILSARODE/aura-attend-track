@@ -13,10 +13,3 @@ export interface CCTVFolder {
   color: string;
   icon: string;
 }
-
-export const DEFAULT_FOLDER: CCTVFolder = {
-  id: "default",
-  name: "Uncategorized",
-  color: "gray",
-  icon: "Settings"
-};
