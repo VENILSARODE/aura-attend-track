@@ -188,76 +188,116 @@ const CCTV = () => {
           </p>
         </div>
         
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              className="bg-primary hover:bg-primary/90"
-              disabled={cameras.length >= MAX_CAMERAS}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Camera
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Add New Camera</DialogTitle>
-              <DialogDescription>
-                Enter the camera details to add it to your surveillance system.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Name
-                </Label>
-                <Input
-                  id="name"
-                  value={newCamera.name}
-                  onChange={(e) => setNewCamera({ ...newCamera, name: e.target.value })}
-                  className="col-span-3"
-                  placeholder="e.g., Main Entrance"
-                  maxLength={50}
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="ip" className="text-right">
-                  IP Address*
-                </Label>
-                <Input
-                  id="ip"
-                  value={newCamera.ipAddress}
-                  onChange={(e) => setNewCamera({ ...newCamera, ipAddress: e.target.value })}
-                  className="col-span-3"
-                  placeholder="192.168.1.100"
-                  pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="port" className="text-right">
-                  Port*
-                </Label>
-                <Input
-                  id="port"
-                  type="number"
-                  value={newCamera.port}
-                  onChange={(e) => setNewCamera({ ...newCamera, port: parseInt(e.target.value) || 8080 })}
-                  className="col-span-3"
-                  placeholder="8080"
-                  min="1"
-                  max="65535"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddCamera} className="bg-primary hover:bg-primary/90">
+        <div className="flex gap-2">
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                className="bg-primary hover:bg-primary/90"
+                disabled={cameras.length >= MAX_CAMERAS}
+              >
+                <Plus className="h-4 w-4 mr-2" />
                 Add Camera
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Camera</DialogTitle>
+                <DialogDescription>
+                  Enter the camera details to add it to your surveillance system.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="name" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="name"
+                    value={newCamera.name}
+                    onChange={(e) => setNewCamera({ ...newCamera, name: e.target.value })}
+                    className="col-span-3"
+                    placeholder="e.g., Main Entrance"
+                    maxLength={50}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="ip" className="text-right">
+                    IP Address*
+                  </Label>
+                  <Input
+                    id="ip"
+                    value={newCamera.ipAddress}
+                    onChange={(e) => setNewCamera({ ...newCamera, ipAddress: e.target.value })}
+                    className="col-span-3"
+                    placeholder="192.168.1.100"
+                    pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="port" className="text-right">
+                    Port*
+                  </Label>
+                  <Input
+                    id="port"
+                    type="number"
+                    value={newCamera.port}
+                    onChange={(e) => setNewCamera({ ...newCamera, port: parseInt(e.target.value) || 8080 })}
+                    className="col-span-3"
+                    placeholder="8080"
+                    min="1"
+                    max="65535"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddCamera} className="bg-primary hover:bg-primary/90">
+                  Add Camera
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline"
+                disabled={cameras.length >= MAX_CAMERAS}
+              >
+                Quick Add
+                <Settings className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => quickAddCamera("Main Entrance", "192.168.1.101")}>
+                <Settings className="h-4 w-4 mr-2" />
+                Main Entrance (192.168.1.101)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => quickAddCamera("Classroom A", "192.168.1.102")}>
+                <Users className="h-4 w-4 mr-2" />
+                Classroom A (192.168.1.102)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => quickAddCamera("Classroom B", "192.168.1.103")}>
+                <Users className="h-4 w-4 mr-2" />
+                Classroom B (192.168.1.103)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => quickAddCamera("Library", "192.168.1.104")}>
+                <Settings className="h-4 w-4 mr-2" />
+                Library (192.168.1.104)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => quickAddCamera("Cafeteria", "192.168.1.105")}>
+                <Settings className="h-4 w-4 mr-2" />
+                Cafeteria (192.168.1.105)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => quickAddCamera("Parking Lot", "192.168.1.106")}>
+                <Settings className="h-4 w-4 mr-2" />
+                Parking Lot (192.168.1.106)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Search and Quick Add */}
