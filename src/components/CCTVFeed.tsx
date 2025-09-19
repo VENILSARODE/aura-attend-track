@@ -64,8 +64,9 @@ const CCTVFeed: React.FC<CCTVFeedProps> = ({
   const storedPersons: StoredPerson[] = students?.map(student => ({
     id: student.id.toString(),
     name: student.name,
-    role: 'Student', // Default role for all students
-    faceEmbedding: undefined // Will be generated on first use
+    role: 'Student',
+    image: student.photo, // Include the uploaded photo for face matching
+    faceEmbedding: undefined // Will be generated on first use from the photo
   })) || [];
   
   // Simulate camera feed and face detection
@@ -80,7 +81,7 @@ const CCTVFeed: React.FC<CCTVFeedProps> = ({
 
     let animationId: number;
 
-    const drawFrame = () => {
+    const drawFrame = async () => {
       // Simulate camera background (gradient to simulate video feed)
       const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
       gradient.addColorStop(0, '#1a1a2e');
@@ -108,10 +109,21 @@ const CCTVFeed: React.FC<CCTVFeedProps> = ({
       // Generate detected faces
       const detectedFaces = faceVerificationService.detectFacesInFrame(frameCount, cameraId);
       
-      // Verify faces against stored data
-      const verifiedFaces = faceVerificationService.verifyFaces(detectedFaces, storedPersons);
-      
-      setFaces(verifiedFaces);
+      // Verify faces against stored data using async method for better accuracy
+      const verifiedFaces = await faceVerificationService.verifyFacesAsync(detectedFaces, storedPersons);
+      // Log face detection and verification results for debugging
+      if (detectedFaces.length > 0) {
+        console.log(`CCTV ${cameraName}: Detected ${detectedFaces.length} faces`);
+        console.log(`Available students for matching: ${storedPersons.length}`);
+        
+        verifiedFaces.forEach((face, index) => {
+          if (face.verifiedPerson) {
+            console.log(`Face ${index + 1}: Matched to ${face.verifiedPerson.name} (${(face.verifiedPerson.confidence * 100).toFixed(1)}%)`);
+          } else {
+            console.log(`Face ${index + 1}: No match found (detection confidence: ${(face.confidence * 100).toFixed(1)}%)`);
+          }
+        });
+      }
 
       // Draw face detection rectangles and verification results
       verifiedFaces.forEach((face) => {
@@ -174,6 +186,8 @@ const CCTVFeed: React.FC<CCTVFeedProps> = ({
 
         // Mark attendance for verified faces
         if (isVerified && face.verifiedPerson && frameCount % 300 === 0) { // Every 10 seconds
+          console.log(`CCTV: Verified ${face.verifiedPerson.name} with ${(face.verifiedPerson.confidence * 100).toFixed(1)}% confidence`);
+          
           const attendanceRecord = markAttendance({
             personId: face.verifiedPerson.id,
             personName: face.verifiedPerson.name,

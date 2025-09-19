@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
 import { useAttendance } from "@/context/AttendanceContext";
+import { faceVerificationService } from "@/utils/faceVerification";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown, UserX, Shield } from "lucide-react";
@@ -142,131 +143,82 @@ const FaceRecognition = () => {
     return null;
   };
 
-  const verifyFaceAgainstDatabase = (capturedImage: string | null): Promise<{ isVerified: boolean, studentId: string | null, confidence: number }> => {
-    return new Promise((resolve) => {
-      if (students.length === 0) {
-        resolve({ isVerified: false, studentId: null, confidence: 0 });
-        return;
+  const verifyFaceAgainstDatabase = async (capturedImage: string | null): Promise<{ isVerified: boolean, studentId: string | null, confidence: number }> => {
+    if (students.length === 0) {
+      return { isVerified: false, studentId: null, confidence: 0 };
+    }
+
+    // Initialize face verification service
+    await faceVerificationService.initialize();
+
+    const studentsWithPhotos = students.filter(s => s.photo);
+    
+    if (studentsWithPhotos.length === 0) {
+      return { isVerified: false, studentId: null, confidence: 0 };
+    }
+
+    try {
+      // Convert students to StoredPerson format for face verification
+      const storedPersons = studentsWithPhotos.map(student => ({
+        id: student.id,
+        name: student.name,
+        role: 'student',
+        image: student.photo,
+        faceEmbedding: undefined as number[] | undefined
+      }));
+
+      console.log(`Face Recognition: Attempting to match against ${storedPersons.length} students with photos`);
+      storedPersons.forEach((person, index) => {
+        console.log(`Student ${index + 1}: ${person.name} (ID: ${person.id}) - Has photo: ${!!person.image}`);
+      });
+
+      // Create a detected face from the captured image (simulate detection bounds)
+      const detectedFace = {
+        id: 1,
+        x: 100,
+        y: 100, 
+        width: 150,
+        height: 200,
+        confidence: 0.9,
+        embedding: undefined as number[] | undefined,
+        verifiedPerson: undefined
+      };
+
+      // Generate embedding from captured image if available
+      if (capturedImage) {
+        try {
+          const embedding = await faceVerificationService.generateFaceEmbedding(capturedImage);
+          detectedFace.embedding = embedding;
+        } catch (error) {
+          console.warn('Failed to generate embedding from captured image:', error);
+          detectedFace.embedding = faceVerificationService.generateFaceEmbeddingSync(detectedFace);
+        }
+      } else {
+        detectedFace.embedding = faceVerificationService.generateFaceEmbeddingSync(detectedFace);
       }
 
-      setTimeout(() => {
-        const studentsWithPhotos = students.filter(s => s.photo);
+      // Verify the face against stored persons
+      const verifiedFaces = await faceVerificationService.verifyFacesAsync([detectedFace], storedPersons);
+      const verifiedFace = verifiedFaces[0];
+
+      if (verifiedFace.verifiedPerson) {
+        const confidence = verifiedFace.verifiedPerson.confidence * 100; // Convert to percentage
+        console.log(`Manual Face Recognition: Successfully matched ${verifiedFace.verifiedPerson.name} with ${confidence.toFixed(1)}% confidence`);
         
-        if (studentsWithPhotos.length === 0) {
-          resolve({ isVerified: false, studentId: null, confidence: 0 });
-          return;
-        }
-        
-        const currentScores = {...faceScores};
-        const currentConsecutiveMatches = {...consecutiveMatches};
-        
-        const detectionSuccess = Math.random() < 0.95;
-        
-        if (detectionSuccess) {
-          let matchedStudent;
-          
-          if (Object.keys(currentScores).length > 0) {
-            const sortedStudents = Object.entries(currentScores)
-              .sort(([, scoreA], [, scoreB]) => scoreB - scoreA);
-            
-            if (sortedStudents.length > 1 && 
-                sortedStudents[0][1] > sortedStudents[1][1] * 1.25 &&
-                Math.random() < 0.9) {
-              matchedStudent = students.find(s => s.id === sortedStudents[0][0]);
-              
-              if (lastMatchedId === sortedStudents[0][0]) {
-                currentConsecutiveMatches[sortedStudents[0][0]] = 
-                  (currentConsecutiveMatches[sortedStudents[0][0]] || 0) + 1;
-              } else {
-                Object.keys(currentConsecutiveMatches).forEach(id => {
-                  if (id !== sortedStudents[0][0]) {
-                    currentConsecutiveMatches[id] = 0;
-                  }
-                });
-                currentConsecutiveMatches[sortedStudents[0][0]] = 1;
-              }
-            } else {
-              const studentWithConsecutiveMatches = Object.entries(currentConsecutiveMatches)
-                .filter(([, count]) => count >= CONSECUTIVE_MATCHES_REQUIRED)
-                .sort(([, countA], [, countB]) => countB - countA)[0];
-              
-              if (studentWithConsecutiveMatches && Math.random() < 0.85) {
-                matchedStudent = students.find(s => s.id === studentWithConsecutiveMatches[0]);
-              } else if (lastMatchedId && 
-                  currentScores[lastMatchedId] && 
-                  currentScores[lastMatchedId] > captureCount * 0.3 &&
-                  Math.random() < 0.8) {
-                matchedStudent = students.find(s => s.id === lastMatchedId);
-              } else {
-                const topCandidates = sortedStudents
-                  .filter(([, score]) => score > (captureCount * 0.25))
-                  .map(([id]) => students.find(s => s.id === id))
-                  .filter(Boolean);
-                
-                if (topCandidates.length > 0) {
-                  const totalScore = topCandidates.reduce((sum, student) => 
-                    sum + (student ? currentScores[student.id] : 0), 0);
-                  
-                  const random = Math.random() * totalScore;
-                  let cumulativeScore = 0;
-                  
-                  for (const candidate of topCandidates) {
-                    if (candidate) {
-                      cumulativeScore += currentScores[candidate.id];
-                      if (random <= cumulativeScore) {
-                        matchedStudent = candidate;
-                        break;
-                      }
-                    }
-                  }
-                  
-                  if (!matchedStudent && topCandidates.length > 0) {
-                    matchedStudent = topCandidates[0];
-                  }
-                } else {
-                  matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
-                }
-              }
-            }
-          } else {
-            matchedStudent = studentsWithPhotos[Math.floor(Math.random() * studentsWithPhotos.length)];
-          }
-          
-          if (matchedStudent) {
-            currentScores[matchedStudent.id] = (currentScores[matchedStudent.id] || 0) + 1;
-            
-            const totalCaptures = captureCount + 1;
-            const confidence = (currentScores[matchedStudent.id] / totalCaptures) * 100;
-            
-            setFaceScores(currentScores);
-            setConsecutiveMatches(currentConsecutiveMatches);
-            setLastMatchedId(matchedStudent.id);
-            
-            if (lastMatchedId === matchedStudent.id) {
-              setStableMatches(prev => prev + 1);
-            } else {
-              setStableMatches(0);
-            }
-            
-            const hasHighConfidence = confidence >= CONFIDENCE_THRESHOLD;
-            const hasStableMatches = stableMatches >= STABLE_MATCHES_REQUIRED;
-            const hasConsecutiveMatches = currentConsecutiveMatches[matchedStudent.id] >= CONSECUTIVE_MATCHES_REQUIRED;
-            
-            const isConfident = hasHighConfidence || hasStableMatches || hasConsecutiveMatches;
-            
-            resolve({ 
-              isVerified: isConfident, 
-              studentId: isConfident ? matchedStudent.id : null,
-              confidence
-            });
-          } else {
-            resolve({ isVerified: false, studentId: null, confidence: 0 });
-          }
-        } else {
-          resolve({ isVerified: false, studentId: null, confidence: 0 });
-        }
-      }, 300);
-    });
+        return {
+          isVerified: confidence >= 50, // Lower threshold for better matching
+          studentId: verifiedFace.verifiedPerson.id,
+          confidence: confidence
+        };
+      }
+
+      console.log('Manual Face Recognition: No match found for captured face');
+      return { isVerified: false, studentId: null, confidence: 0 };
+
+    } catch (error) {
+      console.error('Face verification error:', error);
+      return { isVerified: false, studentId: null, confidence: 0 };
+    }
   };
 
   useEffect(() => {
