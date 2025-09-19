@@ -14,7 +14,7 @@ interface AttendanceRecord {
 
 interface AttendanceContextType {
   attendanceRecords: AttendanceRecord[];
-  markAttendance: (record: Omit<AttendanceRecord, 'id'>) => void;
+  markAttendance: (record: Omit<AttendanceRecord, 'id'>) => AttendanceRecord | undefined;
   getTodayAttendance: () => AttendanceRecord[];
   getAttendanceByPerson: (personId: string) => AttendanceRecord[];
   clearAttendance: () => void;

@@ -174,21 +174,24 @@ const CCTVFeed: React.FC<CCTVFeedProps> = ({
 
         // Mark attendance for verified faces
         if (isVerified && face.verifiedPerson && frameCount % 300 === 0) { // Every 10 seconds
-          markAttendance({
+          const attendanceRecord = markAttendance({
             personId: face.verifiedPerson.id,
             personName: face.verifiedPerson.name,
             role: face.verifiedPerson.role,
             timestamp: new Date(),
-            cameraId: cameraId,
+            cameraId: cameraId || `cctv-${ipAddress}:${port}`,
             cameraName: cameraName,
             confidence: face.verifiedPerson.confidence,
             verified: true
           });
           
-          toast({
-            title: "Attendance Marked",
-            description: `${face.verifiedPerson.name} attendance recorded from ${cameraName}`,
-          });
+          // Only show toast for new attendance records
+          if (attendanceRecord && new Date().getTime() - new Date(attendanceRecord.timestamp).getTime() < 5000) {
+            toast({
+              title: "CCTV Attendance Marked",
+              description: `${face.verifiedPerson.name} detected and marked present by ${cameraName}`,
+            });
+          }
         }
       });
 

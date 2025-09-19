@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { useData } from "@/context/DataContext";
+import { useAttendance } from "@/context/AttendanceContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown, UserX } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown, UserX, Shield } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 const FaceRecognition = () => {
   const { students, processAttendance, updateAttendance } = useData();
+  const { getTodayAttendance } = useAttendance();
   const { toast } = useToast();
   const [scanning, setScanning] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -295,6 +297,15 @@ const FaceRecognition = () => {
                     stableMatches >= STABLE_MATCHES_REQUIRED || 
                     currentConsecutiveMatches >= CONSECUTIVE_MATCHES_REQUIRED) {
                   
+                  // Check if already marked by CCTV today
+                  const todayAttendance = getTodayAttendance();
+                  const existingCCTVRecord = todayAttendance.find(record => 
+                    record.personId === studentId && 
+                    record.cameraId && 
+                    record.cameraId !== 'manual' && 
+                    record.verified
+                  );
+                  
                   setRecognizedStudent(studentId);
                   
                   const today = format(new Date(), "yyyy-MM-dd");
@@ -306,11 +317,20 @@ const FaceRecognition = () => {
                   setVerificationFailed(false);
                   
                   const student = students.find(s => s.id === studentId);
-                  toast({
-                    title: "Attendance Marked",
-                    description: `Successfully verified and marked ${student?.name} as present with ${confidence.toFixed(1)}% confidence.`,
-                    variant: "default",
-                  });
+                  
+                  if (existingCCTVRecord) {
+                    toast({
+                      title: "Manual Verification Complete",
+                      description: `${student?.name} verified manually (already recorded via CCTV from ${existingCCTVRecord.cameraName}).`,
+                      variant: "default",
+                    });
+                  } else {
+                    toast({
+                      title: "Attendance Marked",
+                      description: `Successfully verified and marked ${student?.name} as present with ${confidence.toFixed(1)}% confidence.`,
+                      variant: "default",
+                    });
+                  }
                 } else {
                   setTimeout(captureAndVerify, 300);
                 }
@@ -390,7 +410,7 @@ const FaceRecognition = () => {
       
       return () => clearTimeout(positionTimer);
     }
-  }, [scanning, stream, students, captureCount, faceScores, stableMatches, lastMatchedId, consecutiveMatches, processAttendance, toast, updateAttendance]);
+  }, [scanning, stream, students, captureCount, faceScores, stableMatches, lastMatchedId, consecutiveMatches, processAttendance, toast, updateAttendance, getTodayAttendance]);
 
   const startCamera = async () => {
     try {
@@ -416,6 +436,20 @@ const FaceRecognition = () => {
     if (students.length === 0) {
       setError("No students found in the database. Please add students first.");
       return;
+    }
+
+    // Check if any students already have CCTV attendance today
+    const todayAttendance = getTodayAttendance();
+    const cctvMarkedStudents = todayAttendance.filter(record => 
+      record.cameraId && record.cameraId !== 'manual' && record.verified
+    );
+
+    if (cctvMarkedStudents.length > 0) {
+      toast({
+        title: "CCTV Priority Notice",
+        description: `${cctvMarkedStudents.length} student(s) already marked via CCTV today. Manual verification available as backup.`,
+        variant: "default",
+      });
     }
 
     setError("");
@@ -492,8 +526,19 @@ const FaceRecognition = () => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Face Recognition</h1>
         <p className="text-muted-foreground">
-          Take attendance using face recognition
+          Take attendance using face recognition (Manual backup for CCTV system)
         </p>
+        
+        {/* CCTV Priority Notice */}
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 text-blue-700">
+            <Shield className="h-4 w-4" />
+            <span className="text-sm font-medium">CCTV Priority System</span>
+          </div>
+          <p className="text-xs text-blue-600 mt-1">
+            CCTV cameras automatically detect and mark attendance. Use manual verification only when CCTV coverage is unavailable.
+          </p>
+        </div>
       </div>
 
       <Card className="bg-slate-800 border-slate-700 shadow-md max-w-md mx-auto">
