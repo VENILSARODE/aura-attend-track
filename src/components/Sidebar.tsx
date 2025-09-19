@@ -16,7 +16,6 @@ export const Sidebar = () => {
     { label: "Messages", icon: MessageSquare, path: "/messages" },
     { label: "Timetable", icon: Calendar, path: "/timetable" },
     { label: "CCTV", icon: Monitor, path: "/cctv" },
-    { label: "Attendance Report", icon: ClipboardCheck, path: "/attendance-report" },
   ];
 
   const handleNavigation = (path: string) => {
