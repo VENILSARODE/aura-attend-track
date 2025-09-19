@@ -1,42 +1,32 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Settings, Wifi, WifiOff, Trash2, MoreVertical, Search, ChevronLeft, ChevronRight, Play, Pause, Users } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Settings, WifiOff, Search, ChevronLeft, ChevronRight, Users, Folder, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CCTVCamera, CCTVFolder, DEFAULT_FOLDER } from "@/types/cctv";
+import CCTVCameraCard from "@/components/CCTVCameraCard";
+import CCTVAddCameraDialog from "@/components/CCTVAddCameraDialog";
+import CCTVFolderManager from "@/components/CCTVFolderManager";
 import CCTVFeed from "@/components/CCTVFeed";
-
-interface CCTVCamera {
-  id: string;
-  name: string;
-  ipAddress: string;
-  port: number;
-  status: "online" | "offline";
-}
 
 const CCTV = () => {
   const { toast } = useToast();
   const CAMERAS_PER_PAGE = 12;
   const MAX_CAMERAS = 100;
+  
   const [cameras, setCameras] = useState<CCTVCamera[]>([]);
-  
-  const [newCamera, setNewCamera] = useState({
-    name: "",
-    ipAddress: "",
-    port: 8080
-  });
-  
+  const [folders, setFolders] = useState<CCTVFolder[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [cameraToDelete, setCameraToDelete] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(["default"]));
 
   // IP address validation
   const validateIP = (ip: string) => {
@@ -57,7 +47,22 @@ const CCTV = () => {
     );
   }, [cameras, searchQuery]);
 
-  // Paginated cameras
+  // Group cameras by folder
+  const camerasByFolder = useMemo(() => {
+    const allFolders = [DEFAULT_FOLDER, ...folders];
+    const grouped: Record<string, { folder: CCTVFolder; cameras: CCTVCamera[] }> = {};
+    
+    allFolders.forEach(folder => {
+      grouped[folder.id] = {
+        folder,
+        cameras: filteredCameras.filter(camera => camera.folderId === folder.id)
+      };
+    });
+    
+    return grouped;
+  }, [filteredCameras, folders]);
+
+  // Paginated cameras for flat view
   const paginatedCameras = useMemo(() => {
     const startIndex = (currentPage - 1) * CAMERAS_PER_PAGE;
     return filteredCameras.slice(startIndex, startIndex + CAMERAS_PER_PAGE);
@@ -65,9 +70,9 @@ const CCTV = () => {
 
   const totalPages = Math.ceil(filteredCameras.length / CAMERAS_PER_PAGE);
 
-  const handleAddCamera = () => {
+  const handleAddCamera = (name: string, ipAddress: string, port: number, folderId: string) => {
     // Validate required fields
-    if (!newCamera.name.trim() || !newCamera.ipAddress.trim()) {
+    if (!name.trim() || !ipAddress.trim()) {
       toast({
         title: "Validation Error",
         description: "Please fill in all required fields",
@@ -77,7 +82,7 @@ const CCTV = () => {
     }
 
     // Validate IP address format
-    if (!validateIP(newCamera.ipAddress)) {
+    if (!validateIP(ipAddress)) {
       toast({
         title: "Invalid IP Address", 
         description: "Please enter a valid IP address (e.g., 192.168.1.100)",
@@ -87,7 +92,7 @@ const CCTV = () => {
     }
 
     // Check for duplicate IP and port
-    if (isIPDuplicate(newCamera.ipAddress, newCamera.port)) {
+    if (isIPDuplicate(ipAddress, port)) {
       toast({
         title: "Duplicate Camera",
         description: "A camera with this IP address and port already exists",
@@ -108,13 +113,13 @@ const CCTV = () => {
 
     const camera: CCTVCamera = {
       id: Date.now().toString(),
-      name: newCamera.name.trim(),
-      ipAddress: newCamera.ipAddress.trim(),
-      port: newCamera.port,
-      status: "offline"
+      name: name.trim(),
+      ipAddress: ipAddress.trim(),
+      port: port,
+      status: "offline",
+      folderId: folderId
     };
     setCameras([...cameras, camera]);
-    setNewCamera({ name: "", ipAddress: "", port: 8080 });
     setIsAddDialogOpen(false);
     toast({
       title: "Camera Added",
@@ -143,7 +148,19 @@ const CCTV = () => {
     }
   };
 
-  const quickAddCamera = (name: string, ip: string) => {
+  const moveToFolder = (cameraId: string, folderId: string) => {
+    setCameras(cameras.map(camera => 
+      camera.id === cameraId 
+        ? { ...camera, folderId: folderId }
+        : camera
+    ));
+    toast({
+      title: "Camera Moved",
+      description: "Camera has been moved to the selected folder",
+    });
+  };
+
+  const quickAddCamera = (name: string, ip: string, folderId: string = DEFAULT_FOLDER.id) => {
     // Check camera limit
     if (cameras.length >= MAX_CAMERAS) {
       toast({
@@ -169,7 +186,8 @@ const CCTV = () => {
       name: name,
       ipAddress: ip,
       port: 8080,
-      status: "offline"
+      status: "offline",
+      folderId: folderId
     };
     setCameras([...cameras, camera]);
     toast({
@@ -177,6 +195,58 @@ const CCTV = () => {
       description: `${name} has been successfully added`,
     });
   };
+
+  const handleAddFolder = (name: string, color: string, icon: string) => {
+    const folder: CCTVFolder = {
+      id: Date.now().toString(),
+      name: name,
+      color: color,
+      icon: icon
+    };
+    setFolders([...folders, folder]);
+    toast({
+      title: "Folder Created",
+      description: `${name} folder has been created`,
+    });
+  };
+
+  const handleEditFolder = (id: string, name: string, color: string, icon: string) => {
+    setFolders(folders.map(folder => 
+      folder.id === id 
+        ? { ...folder, name, color, icon }
+        : folder
+    ));
+    toast({
+      title: "Folder Updated",
+      description: `Folder has been updated`,
+    });
+  };
+
+  const handleDeleteFolder = (id: string) => {
+    // Move all cameras from this folder to default
+    setCameras(cameras.map(camera => 
+      camera.folderId === id 
+        ? { ...camera, folderId: DEFAULT_FOLDER.id }
+        : camera
+    ));
+    setFolders(folders.filter(folder => folder.id !== id));
+    toast({
+      title: "Folder Deleted",
+      description: "Folder deleted and cameras moved to Uncategorized",
+    });
+  };
+
+  const toggleFolder = (folderId: string) => {
+    const newOpenFolders = new Set(openFolders);
+    if (newOpenFolders.has(folderId)) {
+      newOpenFolders.delete(folderId);
+    } else {
+      newOpenFolders.add(folderId);
+    }
+    setOpenFolders(newOpenFolders);
+  };
+
+  const allFolders = [DEFAULT_FOLDER, ...folders];
 
   return (
     <div className="p-6 space-y-6">
@@ -189,76 +259,13 @@ const CCTV = () => {
         </div>
         
         <div className="flex gap-2">
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                className="bg-primary hover:bg-primary/90"
-                disabled={cameras.length >= MAX_CAMERAS}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Camera
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add New Camera</DialogTitle>
-                <DialogDescription>
-                  Enter the camera details to add it to your surveillance system.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Name
-                  </Label>
-                  <Input
-                    id="name"
-                    value={newCamera.name}
-                    onChange={(e) => setNewCamera({ ...newCamera, name: e.target.value })}
-                    className="col-span-3"
-                    placeholder="e.g., Main Entrance"
-                    maxLength={50}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="ip" className="text-right">
-                    IP Address*
-                  </Label>
-                  <Input
-                    id="ip"
-                    value={newCamera.ipAddress}
-                    onChange={(e) => setNewCamera({ ...newCamera, ipAddress: e.target.value })}
-                    className="col-span-3"
-                    placeholder="192.168.1.100"
-                    pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="port" className="text-right">
-                    Port*
-                  </Label>
-                  <Input
-                    id="port"
-                    type="number"
-                    value={newCamera.port}
-                    onChange={(e) => setNewCamera({ ...newCamera, port: parseInt(e.target.value) || 8080 })}
-                    className="col-span-3"
-                    placeholder="8080"
-                    min="1"
-                    max="65535"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddCamera} className="bg-primary hover:bg-primary/90">
-                  Add Camera
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <CCTVAddCameraDialog
+            folders={folders}
+            isOpen={isAddDialogOpen}
+            onOpenChange={setIsAddDialogOpen}
+            onAddCamera={handleAddCamera}
+            disabled={cameras.length >= MAX_CAMERAS}
+          />
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -300,7 +307,7 @@ const CCTV = () => {
         </div>
       </div>
 
-      {/* Search and Quick Add */}
+      {/* Search */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <div className="relative">
@@ -313,42 +320,67 @@ const CCTV = () => {
             />
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => quickAddCamera("Classroom B", "192.168.1.103")}
-            className="text-xs"
-            disabled={cameras.length >= MAX_CAMERAS}
-          >
-            + Classroom B
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => quickAddCamera("Library", "192.168.1.104")}
-            className="text-xs"
-            disabled={cameras.length >= MAX_CAMERAS}
-          >
-            + Library
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => quickAddCamera("Cafeteria", "192.168.1.105")}
-            className="text-xs"
-            disabled={cameras.length >= MAX_CAMERAS}
-          >
-            + Cafeteria
-          </Button>
-        </div>
       </div>
 
-      <Tabs defaultValue="grid" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="grid">Camera Grid</TabsTrigger>
+      <Tabs defaultValue="folders" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="folders">Folders</TabsTrigger>
+          <TabsTrigger value="grid">All Cameras</TabsTrigger>
           <TabsTrigger value="live">Live Feed</TabsTrigger>
         </TabsList>
+        
+        <TabsContent value="folders" className="space-y-6">
+          <CCTVFolderManager
+            folders={folders}
+            onAddFolder={handleAddFolder}
+            onEditFolder={handleEditFolder}
+            onDeleteFolder={handleDeleteFolder}
+          />
+          
+          <div className="space-y-4">
+            {Object.values(camerasByFolder).map(({ folder, cameras: folderCameras }) => (
+              <Collapsible
+                key={folder.id}
+                open={openFolders.has(folder.id)}
+                onOpenChange={() => toggleFolder(folder.id)}
+              >
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-4 h-auto">
+                    <div className="flex items-center gap-2">
+                      {openFolders.has(folder.id) ? (
+                        <FolderOpen className="h-5 w-5" />
+                      ) : (
+                        <Folder className="h-5 w-5" />
+                      )}
+                      <span className="font-medium">{folder.name}</span>
+                      <span className="text-sm text-muted-foreground">({folderCameras.length})</span>
+                    </div>
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 pt-4">
+                  {folderCameras.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No cameras in this folder
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {folderCameras.map((camera) => (
+                        <CCTVCameraCard
+                          key={camera.id}
+                          camera={camera}
+                          folders={allFolders}
+                          onToggleStatus={toggleCameraStatus}
+                          onDelete={handleDeleteCamera}
+                          onMoveToFolder={moveToFolder}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+            ))}
+          </div>
+        </TabsContent>
         
         <TabsContent value="grid" className="space-y-4">
           {filteredCameras.length === 0 ? (
@@ -365,66 +397,14 @@ const CCTV = () => {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {paginatedCameras.map((camera) => (
-              <Card key={camera.id} className="bg-card border-border">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg text-card-foreground">{camera.name}</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Badge 
-                        variant={camera.status === "online" ? "default" : "destructive"}
-                        className="flex items-center gap-1"
-                      >
-                        {camera.status === "online" ? (
-                          <Wifi className="h-3 w-3" />
-                        ) : (
-                          <WifiOff className="h-3 w-3" />
-                        )}
-                        {camera.status}
-                      </Badge>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleDeleteCamera(camera.id)} className="text-destructive">
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Camera
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                  <CardDescription>
-                    {camera.ipAddress}:{camera.port}
-                  </CardDescription>
-                </CardHeader>
-                
-                <CardContent className="space-y-4">
-                  <CCTVFeed
-                    cameraName={camera.name}
-                    ipAddress={camera.ipAddress}
-                    port={camera.port}
-                    status={camera.status}
-                    cameraId={camera.id}
+                  <CCTVCameraCard
+                    key={camera.id}
+                    camera={camera}
+                    folders={allFolders}
+                    onToggleStatus={toggleCameraStatus}
+                    onDelete={handleDeleteCamera}
+                    onMoveToFolder={moveToFolder}
                   />
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleCameraStatus(camera.id)}
-                      className="flex-1"
-                    >
-                      {camera.status === "online" ? "Disconnect" : "Connect"}
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
                 ))}
               </div>
               
