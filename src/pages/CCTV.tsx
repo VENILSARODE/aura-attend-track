@@ -24,22 +24,7 @@ const CCTV = () => {
   const { toast } = useToast();
   const CAMERAS_PER_PAGE = 12;
   const MAX_CAMERAS = 100;
-  const [cameras, setCameras] = useState<CCTVCamera[]>([
-    {
-      id: "1",
-      name: "Main Entrance",
-      ipAddress: "192.168.1.101",
-      port: 8080,
-      status: "online"
-    },
-    {
-      id: "2", 
-      name: "Classroom A",
-      ipAddress: "192.168.1.102",
-      port: 8080,
-      status: "offline"
-    }
-  ]);
+  const [cameras, setCameras] = useState<CCTVCamera[]>([]);
   
   const [newCamera, setNewCamera] = useState({
     name: "",
