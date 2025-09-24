@@ -51,22 +51,17 @@ const FaceRecognition = () => {
   }, []);
 
   useEffect(() => {
-    if (!scanning || !stream || !videoRef.current || !blurCanvasRef.current) return;
+    if (!scanning || !stream || !videoRef.current) return;
 
     const video = videoRef.current;
-    const canvas = blurCanvasRef.current;
-    const ctx = canvas.getContext('2d');
     
-    if (!ctx) return;
-
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-
     const simulateFaceDetection = () => {
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2; 
-      const faceWidth = canvas.width * 0.3;
-      const faceHeight = canvas.height * 0.4;
+      // Get video dimensions
+      const videoRect = video.getBoundingClientRect();
+      const centerX = videoRect.width / 2;
+      const centerY = videoRect.height / 2;
+      const faceWidth = videoRect.width * 0.3;
+      const faceHeight = videoRect.height * 0.4;
       
       return {
         x: centerX - faceWidth / 2,
@@ -76,51 +71,16 @@ const FaceRecognition = () => {
       };
     };
 
-    const applyBlurEffect = () => {
-      if (!video || !ctx) return;
-      
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const updateFaceDetection = () => {
+      if (!video) return;
       
       const faceRect = simulateFaceDetection();
       setFaceBounds(faceRect);
       
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const blurredData = boxBlur(imageData, 1);
-      ctx.putImageData(blurredData, 0, 0);
-      
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(faceRect.x, faceRect.y, faceRect.width, faceRect.height);
-      ctx.clip();
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      ctx.restore();
-      
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(faceRect.x, faceRect.y, faceRect.width, faceRect.height);
-      
-      animationId = requestAnimationFrame(applyBlurEffect);
+      animationId = requestAnimationFrame(updateFaceDetection);
     };
     
-    const boxBlur = (imageData: ImageData, iterations: number) => {
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = imageData.width;
-      tempCanvas.height = imageData.height;
-      
-      const tempCtx = tempCanvas.getContext('2d');
-      if (!tempCtx) return imageData;
-      
-      tempCtx.putImageData(imageData, 0, 0);
-      
-      for (let i = 0; i < iterations; i++) {
-        tempCtx.filter = 'blur(1px)';
-        tempCtx.drawImage(tempCanvas, 0, 0);
-      }
-      
-      return tempCtx.getImageData(0, 0, imageData.width, imageData.height);
-    };
-    
-    let animationId = requestAnimationFrame(applyBlurEffect);
+    let animationId = requestAnimationFrame(updateFaceDetection);
     
     return () => {
       cancelAnimationFrame(animationId);
@@ -533,23 +493,32 @@ const FaceRecognition = () => {
                   autoPlay 
                   muted 
                   playsInline 
-                  className="opacity-0 absolute"
+                  className="w-full h-full object-cover transform scale-x-[-1]"
                   style={{ 
-                    display: 'block', 
-                    maxWidth: '100%', 
-                    maxHeight: '100%',
-                    objectFit: 'cover'
+                    display: 'block'
                   }}
                 />
                 
                 <canvas
                   ref={blurCanvasRef}
-                  className="w-full h-full object-cover transform scale-x-[-1]"
+                  className="hidden"
                 />
                 
                 {scanning && (
                   <div className="absolute inset-0 pointer-events-none">
                     {renderPositionGuidance()}
+                    
+                    {faceBounds && (
+                      <div 
+                        className="absolute border-2 border-white/60 rounded-md"
+                        style={{
+                          left: `${(faceBounds.x / 640) * 100}%`,
+                          top: `${(faceBounds.y / 480) * 100}%`,
+                          width: `${(faceBounds.width / 640) * 100}%`,
+                          height: `${(faceBounds.height / 480) * 100}%`
+                        }}
+                      />
+                    )}
                     
                     {!faceBounds && (
                       <div className="absolute inset-0 flex items-center justify-center">
