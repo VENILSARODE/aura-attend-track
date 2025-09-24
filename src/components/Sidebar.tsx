@@ -11,7 +11,6 @@ export const Sidebar = () => {
   const menuItems = [
     { label: "Home", icon: Home, path: "/dashboard" },
     { label: "Upload Data", icon: Upload, path: "/upload-data" },
-    { label: "Face Recognition", icon: Camera, path: "/face-recognition" },
     { label: "Data Store", icon: Database, path: "/data-store" },
     { label: "Messages", icon: MessageSquare, path: "/messages" },
     { label: "Timetable", icon: Calendar, path: "/timetable" },
