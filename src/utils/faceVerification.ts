@@ -32,12 +32,21 @@ class FaceVerificationService {
     if (this.isInitialized) return;
 
     try {
-      // Initialize face detection model
-      this.faceDetector = await pipeline(
-        'object-detection',
-        'Xenova/yolos-tiny',
-        { device: 'webgpu' }
-      );
+      // Initialize face detection model with fallback
+      try {
+        this.faceDetector = await pipeline(
+          'object-detection',
+          'Xenova/yolos-tiny',
+          { device: 'webgpu' }
+        );
+      } catch (webgpuError) {
+        console.log('WebGPU not supported, falling back to WASM');
+        this.faceDetector = await pipeline(
+          'object-detection',
+          'Xenova/yolos-tiny',
+          { device: 'wasm' }
+        );
+      }
       
       this.isInitialized = true;
       console.log('Face verification service initialized');

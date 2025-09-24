@@ -192,127 +192,94 @@ const FaceRecognition = () => {
           setFacePosition("good");
           setFaceDetected(true);
           
+          let captureAttempts = 0;
+          const MAX_ATTEMPTS = MAX_CAPTURES;
+          
           const captureAndVerify = async () => {
             if (!scanning) return;
             
+            captureAttempts++;
+            setCaptureCount(captureAttempts);
+            
+            // Force stop if exceeded attempts
+            if (captureAttempts > MAX_ATTEMPTS) {
+              console.log('Max attempts reached, stopping verification');
+              setVerificationFailed(true);
+              setScanning(false);
+              setCompleted(true);
+              
+              toast({
+                title: "Verification Failed",
+                description: "Could not match your face after maximum attempts. Please try again or check student database.",
+                variant: "destructive",
+              });
+              return;
+            }
+            
             const capturedImage = captureFrame();
-            setCaptureCount(prev => prev + 1);
             
             try {
               const { isVerified, studentId, confidence } = await verifyFaceAgainstDatabase(capturedImage);
               setMatchConfidence(confidence);
               
-              if (isVerified && studentId) {
-                const currentConsecutiveMatches = consecutiveMatches[studentId] || 0;
+              console.log(`Attempt ${captureAttempts}: Confidence ${confidence}%`);
+              
+              // Lower threshold for matching - if we get decent confidence, accept it
+              if (isVerified && studentId && confidence >= 30) {
+                // Check if already marked by CCTV today
+                const todayAttendance = getTodayAttendance();
+                const existingCCTVRecord = todayAttendance.find(record => 
+                  record.personId === studentId && 
+                  record.cameraId && 
+                  record.cameraId !== 'manual' && 
+                  record.verified
+                );
                 
-                if (confidence >= CONFIDENCE_THRESHOLD || 
-                    stableMatches >= STABLE_MATCHES_REQUIRED || 
-                    currentConsecutiveMatches >= CONSECUTIVE_MATCHES_REQUIRED) {
-                  
-                  // Check if already marked by CCTV today
-                  const todayAttendance = getTodayAttendance();
-                  const existingCCTVRecord = todayAttendance.find(record => 
-                    record.personId === studentId && 
-                    record.cameraId && 
-                    record.cameraId !== 'manual' && 
-                    record.verified
-                  );
-                  
-                  setRecognizedStudent(studentId);
-                  
-                  const today = format(new Date(), "yyyy-MM-dd");
-                  console.log(`Marking student ${studentId} as present on ${today}`);
-                  updateAttendance(studentId, today, 'present');
-                  
-                  setScanning(false);
-                  setCompleted(true);
-                  setVerificationFailed(false);
-                  
-                  const student = students.find(s => s.id === studentId);
-                  
-                  if (existingCCTVRecord) {
-                    toast({
-                      title: "Manual Verification Complete",
-                      description: `${student?.name} verified manually (already recorded via CCTV from ${existingCCTVRecord.cameraName}).`,
-                      variant: "default",
-                    });
-                  } else {
-                    toast({
-                      title: "Attendance Marked",
-                      description: `Successfully verified and marked ${student?.name} as present with ${confidence.toFixed(1)}% confidence.`,
-                      variant: "default",
-                    });
-                  }
-                } else {
-                  setTimeout(captureAndVerify, 300);
-                }
-              } 
-              else if (captureCount >= MAX_CAPTURES) {
-                const highestMatch = Object.entries(faceScores)
-                  .sort(([, scoreA], [, scoreB]) => scoreB - scoreA)[0];
+                setRecognizedStudent(studentId);
                 
-                const highestConsecutiveMatch = Object.entries(consecutiveMatches)
-                  .filter(([, count]) => count >= CONSECUTIVE_MATCHES_REQUIRED)
-                  .sort(([, countA], [, countB]) => countB - countA)[0];
+                const today = format(new Date(), "yyyy-MM-dd");
+                console.log(`Marking student ${studentId} as present on ${today}`);
+                updateAttendance(studentId, today, 'present');
                 
-                if (highestConsecutiveMatch) {
-                  const bestMatchId = highestConsecutiveMatch[0];
-                  const bestMatchConfidence = (faceScores[bestMatchId] / captureCount) * 100;
-                  
-                  setRecognizedStudent(bestMatchId);
-                  
-                  const today = format(new Date(), "yyyy-MM-dd");
-                  console.log(`Marking student ${bestMatchId} as present on ${today}`);
-                  updateAttendance(bestMatchId, today, 'present');
-                  
-                  setScanning(false);
-                  setCompleted(true);
-                  setVerificationFailed(false);
-                  
-                  const student = students.find(s => s.id === bestMatchId);
+                setScanning(false);
+                setCompleted(true);
+                setVerificationFailed(false);
+                
+                const student = students.find(s => s.id === studentId);
+                
+                if (existingCCTVRecord) {
                   toast({
-                    title: "Attendance Marked",
-                    description: `Verified and marked ${student?.name} as present with ${bestMatchConfidence.toFixed(1)}% confidence.`,
-                    variant: "default",
-                  });
-                } else if (highestMatch && (highestMatch[1] / captureCount) * 100 >= 50) {
-                  const bestMatchId = highestMatch[0];
-                  const bestMatchConfidence = (highestMatch[1] / captureCount) * 100;
-                  
-                  setRecognizedStudent(bestMatchId);
-                  
-                  const today = format(new Date(), "yyyy-MM-dd");
-                  console.log(`Marking student ${bestMatchId} as present on ${today}`);
-                  updateAttendance(bestMatchId, today, 'present');
-                  
-                  setScanning(false);
-                  setCompleted(true);
-                  setVerificationFailed(false);
-                  
-                  const student = students.find(s => s.id === bestMatchId);
-                  toast({
-                    title: "Attendance Marked",
-                    description: `Verified and marked ${student?.name} as present with ${bestMatchConfidence.toFixed(1)}% confidence.`,
+                    title: "Manual Verification Complete",
+                    description: `${student?.name} verified manually (already recorded via CCTV from ${existingCCTVRecord.cameraName}).`,
                     variant: "default",
                   });
                 } else {
-                  setVerificationFailed(true);
-                  setScanning(false);
-                  setCompleted(true);
-                  
                   toast({
-                    title: "Verification Failed",
-                    description: "Could not confidently match your face to any student in the database after multiple attempts.",
-                    variant: "destructive",
+                    title: "Attendance Marked",
+                    description: `Successfully verified and marked ${student?.name} as present with ${confidence.toFixed(1)}% confidence.`,
+                    variant: "default",
                   });
                 }
-              } else {
-                setTimeout(captureAndVerify, 300);
+                return;
               }
+              
+              // Continue trying if not reached max attempts
+              if (captureAttempts < MAX_ATTEMPTS) {
+                setTimeout(captureAndVerify, 500);
+              }
+              
             } catch (error) {
               console.error("Face verification error:", error);
-              setError("An error occurred during face verification.");
-              setScanning(false);
+              
+              // Continue trying unless max attempts reached
+              if (captureAttempts < MAX_ATTEMPTS) {
+                setTimeout(captureAndVerify, 500);
+              } else {
+                setError("Face verification service failed. Please try again.");
+                setScanning(false);
+                setCompleted(true);
+                setVerificationFailed(true);
+              }
             }
           };
           
@@ -377,6 +344,7 @@ const FaceRecognition = () => {
     setMatchConfidence(0);
     setStableMatches(0);
     setLastMatchedId(null);
+    setConsecutiveMatches({});
 
     try {
       await startCamera();
