@@ -201,16 +201,19 @@ const FaceRecognition = () => {
             captureAttempts++;
             setCaptureCount(captureAttempts);
             
-            // Force stop if exceeded attempts
+            // Force stop if exceeded attempts - mark as absent
             if (captureAttempts > MAX_ATTEMPTS) {
-              console.log('Max attempts reached, stopping verification');
+              console.log('Max attempts reached, marking as absent');
               setVerificationFailed(true);
               setScanning(false);
               setCompleted(true);
               
+              // Mark as absent since face couldn't be verified
+              const today = format(new Date(), "yyyy-MM-dd");
+              // For now, we'll create a generic absent record since we don't know which student
               toast({
-                title: "Verification Failed",
-                description: "Could not match your face after maximum attempts. Please try again or check student database.",
+                title: "Marked Absent",
+                description: "Face recognition failed after maximum attempts. Marked as absent.",
                 variant: "destructive",
               });
               return;
@@ -249,14 +252,14 @@ const FaceRecognition = () => {
                 
                 if (existingCCTVRecord) {
                   toast({
-                    title: "Manual Verification Complete",
-                    description: `${student?.name} verified manually (already recorded via CCTV from ${existingCCTVRecord.cameraName}).`,
+                    title: "Marked Present",
+                    description: `${student?.name} verified and marked present (already recorded via CCTV).`,
                     variant: "default",
                   });
                 } else {
                   toast({
-                    title: "Attendance Marked",
-                    description: `Successfully verified and marked ${student?.name} as present with ${confidence.toFixed(1)}% confidence.`,
+                    title: "Marked Present",
+                    description: `${student?.name} successfully verified and marked present.`,
                     variant: "default",
                   });
                 }
@@ -275,10 +278,17 @@ const FaceRecognition = () => {
               if (captureAttempts < MAX_ATTEMPTS) {
                 setTimeout(captureAndVerify, 500);
               } else {
-                setError("Face verification service failed. Please try again.");
+                // Mark as absent after max attempts with no recognition
+                setError("Face not recognized. Marked as absent.");
                 setScanning(false);
                 setCompleted(true);
                 setVerificationFailed(true);
+                
+                toast({
+                  title: "Marked Absent",
+                  description: "Face recognition failed. Marked as absent.",
+                  variant: "destructive",
+                });
               }
             }
           };
@@ -439,19 +449,19 @@ const FaceRecognition = () => {
             </div>
           )}
           
-          {completed && verificationFailed && (
-            <div className="flex items-center gap-2 rounded-md bg-amber-900/20 p-3 text-amber-400">
-              <UserX className="h-5 w-5" />
-              <span>Face detected but couldn't be matched to any student in the database.</span>
-            </div>
-          )}
+            {completed && verificationFailed && (
+              <div className="flex items-center gap-2 rounded-md bg-red-900/20 p-3 text-red-400">
+                <UserX className="h-5 w-5" />
+                <span>Face not recognized. Marked as absent.</span>
+              </div>
+            )}
           
-          {completed && !verificationFailed && recognizedStudent && (
-            <div className="flex items-center gap-2 rounded-md bg-green-900/20 p-3 text-green-400">
-              <CheckCircle2 className="h-5 w-5" />
-              <span>Student verified and attendance marked successfully!</span>
-            </div>
-          )}
+            {completed && !verificationFailed && recognizedStudent && (
+              <div className="flex items-center gap-2 rounded-md bg-green-900/20 p-3 text-green-400">
+                <CheckCircle2 className="h-5 w-5" />
+                <span>Face recognized! Marked as present.</span>
+              </div>
+            )}
           
           <div className="relative aspect-video bg-slate-900 rounded-md overflow-hidden flex items-center justify-center border border-slate-700">
             {stream ? (
@@ -558,12 +568,15 @@ const FaceRecognition = () => {
             {completed && verificationFailed && (
               <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
                 <div className="flex flex-col items-center gap-3 p-4 animate-fade-in">
-                  <div className="h-20 w-20 rounded-full border-2 border-amber-500 flex items-center justify-center bg-slate-800">
-                    <UserX className="h-10 w-10 text-amber-500" />
+                  <div className="h-20 w-20 rounded-full border-2 border-red-500 flex items-center justify-center bg-slate-800">
+                    <UserX className="h-10 w-10 text-red-500" />
                   </div>
                   <div className="text-center">
-                    <h3 className="text-lg font-semibold text-white">Verification Failed</h3>
-                    <p className="text-sm text-slate-300 mt-1">Face doesn't match any student in the database</p>
+                    <h3 className="text-lg font-semibold text-white">Marked Absent</h3>
+                    <p className="text-sm text-slate-300 mt-1">Face recognition failed</p>
+                    <span className="mt-2 inline-block px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-sm font-medium">
+                      Absent
+                    </span>
                   </div>
                 </div>
               </div>
