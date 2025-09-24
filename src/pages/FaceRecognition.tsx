@@ -504,9 +504,7 @@ const FaceRecognition = () => {
                     
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 p-3">
                       <p className="text-sm text-center text-white font-medium">
-                        {faceDetected 
-                          ? `Face recognized! Verifying student identity... (${captureCount} of ${MAX_CAPTURES} captures, ${matchConfidence.toFixed(1)}% confidence)` 
-                          : "Looking for face..."}
+                        {faceDetected ? "Face detected! Processing..." : "Looking for face..."}
                       </p>
                     </div>
                   </div>
