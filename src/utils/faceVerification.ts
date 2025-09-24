@@ -124,40 +124,115 @@ class FaceVerificationService {
     return this.normalizeEmbedding(embedding);
   }
 
-  // Extract features from image for face embedding
+  // Extract features from image for face embedding with enhanced processing
   private extractImageFeatures(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): number[] {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     const embedding: number[] = [];
     
-    // Extract color and texture features
-    for (let i = 0; i < 128; i++) {
-      const startIdx = Math.floor((i / 128) * data.length);
-      let r = 0, g = 0, b = 0, count = 0;
+    // Enhanced feature extraction with multiple descriptors
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // 1. Color histogram features (first 32 dimensions)
+    const colorBins = 8;
+    const rHist = new Array(colorBins).fill(0);
+    const gHist = new Array(colorBins).fill(0);
+    const bHist = new Array(colorBins).fill(0);
+    
+    for (let i = 0; i < data.length; i += 4) {
+      const r = Math.floor(data[i] / (256 / colorBins));
+      const g = Math.floor(data[i + 1] / (256 / colorBins));
+      const b = Math.floor(data[i + 2] / (256 / colorBins));
       
-      // Sample pixels in a region
-      for (let j = 0; j < 16 && startIdx + j * 4 < data.length; j++) {
-        const idx = startIdx + j * 4;
-        r += data[idx];
-        g += data[idx + 1];
-        b += data[idx + 2];
-        count++;
-      }
-      
-      if (count > 0) {
-        r /= count;
-        g /= count;
-        b /= count;
+      rHist[Math.min(r, colorBins - 1)]++;
+      gHist[Math.min(g, colorBins - 1)]++;
+      bHist[Math.min(b, colorBins - 1)]++;
+    }
+    
+    // Normalize histograms and add to embedding
+    const totalPixels = data.length / 4;
+    for (let i = 0; i < colorBins; i++) {
+      embedding.push(rHist[i] / totalPixels);
+      embedding.push(gHist[i] / totalPixels);
+      embedding.push(bHist[i] / totalPixels);
+    }
+    
+    // 2. Edge detection features (next 32 dimensions)
+    const edgeStrengths: number[] = [];
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const idx = (y * width + x) * 4;
         
-        // Normalize and create feature
-        const feature = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-        embedding.push(feature);
-      } else {
-        embedding.push(0);
+        // Sobel operators
+        const gx = -1 * this.getGrayValue(data, idx - width * 4 - 4) + 
+                   1 * this.getGrayValue(data, idx - width * 4 + 4) +
+                   -2 * this.getGrayValue(data, idx - 4) + 
+                   2 * this.getGrayValue(data, idx + 4) +
+                   -1 * this.getGrayValue(data, idx + width * 4 - 4) + 
+                   1 * this.getGrayValue(data, idx + width * 4 + 4);
+                   
+        const gy = -1 * this.getGrayValue(data, idx - width * 4 - 4) + 
+                   -2 * this.getGrayValue(data, idx - width * 4) + 
+                   -1 * this.getGrayValue(data, idx - width * 4 + 4) +
+                   1 * this.getGrayValue(data, idx + width * 4 - 4) + 
+                   2 * this.getGrayValue(data, idx + width * 4) + 
+                   1 * this.getGrayValue(data, idx + width * 4 + 4);
+        
+        const magnitude = Math.sqrt(gx * gx + gy * gy);
+        edgeStrengths.push(magnitude);
       }
     }
     
+    // Sample edge strengths for embedding
+    for (let i = 0; i < 32; i++) {
+      const sampleIdx = Math.floor((i / 32) * edgeStrengths.length);
+      embedding.push(edgeStrengths[sampleIdx] / 255);
+    }
+    
+    // 3. Spatial features (remaining dimensions)
+    const gridSize = 8; // 8x8 grid
+    const cellWidth = width / gridSize;
+    const cellHeight = height / gridSize;
+    
+    for (let gy = 0; gy < gridSize; gy++) {
+      for (let gx = 0; gx < gridSize; gx++) {
+        let avgIntensity = 0;
+        let pixelCount = 0;
+        
+        for (let y = Math.floor(gy * cellHeight); y < Math.floor((gy + 1) * cellHeight); y++) {
+          for (let x = Math.floor(gx * cellWidth); x < Math.floor((gx + 1) * cellWidth); x++) {
+            if (y < height && x < width) {
+              const idx = (y * width + x) * 4;
+              avgIntensity += this.getGrayValue(data, idx);
+              pixelCount++;
+            }
+          }
+        }
+        
+        if (pixelCount > 0) {
+          embedding.push(avgIntensity / (pixelCount * 255));
+        } else {
+          embedding.push(0);
+        }
+      }
+    }
+    
+    // Ensure we have exactly 128 dimensions
+    while (embedding.length < 128) {
+      embedding.push(0);
+    }
+    if (embedding.length > 128) {
+      embedding.splice(128);
+    }
+    
     return this.normalizeEmbedding(embedding);
+  }
+  
+  // Helper method to get grayscale value
+  private getGrayValue(data: Uint8ClampedArray, idx: number): number {
+    if (idx < 0 || idx >= data.length - 2) return 0;
+    return data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114;
   }
 
   // Extract features from canvas element
@@ -179,10 +254,11 @@ class FaceVerificationService {
     return new Array(128).fill(0).map(() => Math.random() - 0.5);
   }
 
-  // Calculate similarity between two face embeddings
+  // Enhanced similarity calculation with multiple metrics
   calculateSimilarity(embedding1: number[], embedding2: number[]): number {
     if (embedding1.length !== embedding2.length) return 0;
 
+    // 1. Cosine similarity (primary metric)
     let dotProduct = 0;
     let norm1 = 0;
     let norm2 = 0;
@@ -193,8 +269,30 @@ class FaceVerificationService {
       norm2 += embedding2[i] * embedding2[i];
     }
 
-    const similarity = dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
-    return Math.max(0, Math.min(1, similarity));
+    const cosineSimilarity = dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+    
+    // 2. Euclidean distance (converted to similarity)
+    let euclideanDistance = 0;
+    for (let i = 0; i < embedding1.length; i++) {
+      const diff = embedding1[i] - embedding2[i];
+      euclideanDistance += diff * diff;
+    }
+    const euclideanSimilarity = 1 / (1 + Math.sqrt(euclideanDistance));
+    
+    // 3. Manhattan distance (converted to similarity)  
+    let manhattanDistance = 0;
+    for (let i = 0; i < embedding1.length; i++) {
+      manhattanDistance += Math.abs(embedding1[i] - embedding2[i]);
+    }
+    const manhattanSimilarity = 1 / (1 + manhattanDistance);
+    
+    // Weighted combination of similarities
+    const finalSimilarity = 
+      0.6 * cosineSimilarity + 
+      0.25 * euclideanSimilarity + 
+      0.15 * manhattanSimilarity;
+    
+    return Math.max(0, Math.min(1, finalSimilarity));
   }
 
   // Verify faces against stored database (async version for proper face matching)
@@ -204,7 +302,7 @@ class FaceVerificationService {
       return detectedFaces;
     }
 
-    const SIMILARITY_THRESHOLD = 0.4; // Lowered threshold for better matching with simulated data
+    const SIMILARITY_THRESHOLD = 0.6; // Improved threshold for better accuracy
 
     console.log(`Face Verification: Processing ${detectedFaces.length} detected faces against ${storedPersons.length} stored persons`);
 
