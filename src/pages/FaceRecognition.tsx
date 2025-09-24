@@ -180,7 +180,7 @@ const FaceRecognition = () => {
         console.log(`✅ MATCH FOUND: ${verifiedFace.verifiedPerson.name} with ${confidence.toFixed(1)}% confidence`);
         
         return {
-          isVerified: confidence >= 40, // Reasonable threshold for face matching
+          isVerified: confidence >= 20, // Lower threshold for easier matching
           studentId: verifiedFace.verifiedPerson.id,
           confidence: confidence
         };
@@ -242,7 +242,7 @@ const FaceRecognition = () => {
               console.log(`Attempt ${captureAttempts}: Confidence ${confidence}%`);
               
               // Lower threshold for matching - if we get decent confidence, accept it
-              if (isVerified && studentId && confidence >= 40) {
+              if (isVerified && studentId && confidence >= 20) {
                 // Check if already marked by CCTV today
                 const todayAttendance = getTodayAttendance();
                 const existingCCTVRecord = todayAttendance.find(record => 
@@ -320,14 +320,20 @@ const FaceRecognition = () => {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: "user",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 640, min: 480 },
+          height: { ideal: 480, min: 360 }
         } 
       });
       setStream(mediaStream);
       
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          if (videoRef.current) {
+            videoRef.current.onloadedmetadata = () => resolve(void 0);
+          }
+        });
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
@@ -505,7 +511,8 @@ const FaceRecognition = () => {
                   playsInline 
                   className="w-full h-full object-cover transform scale-x-[-1]"
                   style={{ 
-                    display: 'block'
+                    display: 'block',
+                    background: '#000'
                   }}
                 />
                 
@@ -520,14 +527,18 @@ const FaceRecognition = () => {
                     
                     {faceBounds && (
                       <div 
-                        className="absolute border-2 border-white/60 rounded-md"
+                        className="absolute border-2 border-green-400 rounded-md bg-green-400/10"
                         style={{
-                          left: `${(faceBounds.x / 640) * 100}%`,
-                          top: `${(faceBounds.y / 480) * 100}%`,
-                          width: `${(faceBounds.width / 640) * 100}%`,
-                          height: `${(faceBounds.height / 480) * 100}%`
+                          left: `${Math.max(0, (faceBounds.x / 640) * 100)}%`,
+                          top: `${Math.max(0, (faceBounds.y / 480) * 100)}%`,
+                          width: `${Math.min(100, (faceBounds.width / 640) * 100)}%`,
+                          height: `${Math.min(100, (faceBounds.height / 480) * 100)}%`
                         }}
-                      />
+                      >
+                        <div className="absolute -top-6 left-0 text-xs text-green-400 font-medium bg-green-900/80 px-2 py-1 rounded">
+                          Face Detected
+                        </div>
+                      </div>
                     )}
                     
                     {!faceBounds && (

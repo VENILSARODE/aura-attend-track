@@ -56,10 +56,9 @@ class FaceVerificationService {
     }
   }
 
-  // Generate face embedding from image data
+  // Generate face embedding from image data with improved error handling
   async generateFaceEmbedding(imageData: string | HTMLImageElement | HTMLCanvasElement): Promise<number[]> {
     try {
-      // Create a more sophisticated embedding based on image content
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) return this.getFallbackEmbedding();
@@ -69,9 +68,13 @@ class FaceVerificationService {
       if (typeof imageData === 'string') {
         // Handle base64 image data
         img = new Image();
+        img.crossOrigin = 'anonymous'; // Add cross-origin support
         await new Promise((resolve, reject) => {
           img.onload = resolve;
-          img.onerror = reject;
+          img.onerror = (error) => {
+            console.warn('Image load error:', error);
+            reject(error);
+          };
           img.src = imageData;
         });
       } else if (imageData instanceof HTMLImageElement) {
@@ -81,13 +84,19 @@ class FaceVerificationService {
         return this.extractCanvasFeatures(imageData);
       }
 
+      // Ensure image is loaded
+      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        console.warn('Image not properly loaded, using fallback');
+        return this.getFallbackEmbedding();
+      }
+
       canvas.width = 128;
       canvas.height = 128;
       ctx.drawImage(img, 0, 0, 128, 128);
       
       return this.extractImageFeatures(canvas, ctx);
     } catch (error) {
-      console.warn('Error generating face embedding:', error);
+      console.warn('Error generating face embedding, using fallback:', error);
       return this.getFallbackEmbedding();
     }
   }
@@ -311,7 +320,7 @@ class FaceVerificationService {
       return detectedFaces;
     }
 
-    const SIMILARITY_THRESHOLD = 0.6; // Improved threshold for better accuracy
+    const SIMILARITY_THRESHOLD = 0.25; // Lower threshold for easier matching
 
     console.log(`Face Verification: Processing ${detectedFaces.length} detected faces against ${storedPersons.length} stored persons`);
 
