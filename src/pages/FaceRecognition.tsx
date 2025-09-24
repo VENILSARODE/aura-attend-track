@@ -105,6 +105,7 @@ const FaceRecognition = () => {
 
   const verifyFaceAgainstDatabase = async (capturedImage: string | null): Promise<{ isVerified: boolean, studentId: string | null, confidence: number }> => {
     if (students.length === 0) {
+      console.log('No students in database');
       return { isVerified: false, studentId: null, confidence: 0 };
     }
 
@@ -114,8 +115,16 @@ const FaceRecognition = () => {
     const studentsWithPhotos = students.filter(s => s.photo);
     
     if (studentsWithPhotos.length === 0) {
+      console.log('No students with photos found in database');
+      toast({
+        title: "No Student Photos",
+        description: "No student photos found in database. Please upload student data with photos first.",
+        variant: "destructive",
+      });
       return { isVerified: false, studentId: null, confidence: 0 };
     }
+
+    console.log(`Face Recognition: Comparing against ${studentsWithPhotos.length} students with photos`);
 
     try {
       // Convert students to StoredPerson format for face verification
@@ -127,9 +136,10 @@ const FaceRecognition = () => {
         faceEmbedding: undefined as number[] | undefined
       }));
 
-      console.log(`Face Recognition: Attempting to match against ${storedPersons.length} students with photos`);
+      // Log student details for debugging
+      console.log('Students available for matching:');
       storedPersons.forEach((person, index) => {
-        console.log(`Student ${index + 1}: ${person.name} (ID: ${person.id}) - Has photo: ${!!person.image}`);
+        console.log(`${index + 1}. ${person.name} (ID: ${person.id}) - Photo: ${person.image ? 'Yes' : 'No'}`);
       });
 
       // Create a detected face from the captured image (simulate detection bounds)
@@ -147,32 +157,36 @@ const FaceRecognition = () => {
       // Generate embedding from captured image if available
       if (capturedImage) {
         try {
+          console.log('Generating embedding from captured face image');
           const embedding = await faceVerificationService.generateFaceEmbedding(capturedImage);
           detectedFace.embedding = embedding;
+          console.log(`Generated embedding with ${embedding.length} dimensions`);
         } catch (error) {
           console.warn('Failed to generate embedding from captured image:', error);
           detectedFace.embedding = faceVerificationService.generateFaceEmbeddingSync(detectedFace);
         }
       } else {
+        console.warn('No captured image available, using fallback embedding');
         detectedFace.embedding = faceVerificationService.generateFaceEmbeddingSync(detectedFace);
       }
 
       // Verify the face against stored persons
+      console.log('Starting face verification against uploaded student photos...');
       const verifiedFaces = await faceVerificationService.verifyFacesAsync([detectedFace], storedPersons);
       const verifiedFace = verifiedFaces[0];
 
       if (verifiedFace.verifiedPerson) {
         const confidence = verifiedFace.verifiedPerson.confidence * 100; // Convert to percentage
-        console.log(`Manual Face Recognition: Successfully matched ${verifiedFace.verifiedPerson.name} with ${confidence.toFixed(1)}% confidence`);
+        console.log(`✅ MATCH FOUND: ${verifiedFace.verifiedPerson.name} with ${confidence.toFixed(1)}% confidence`);
         
         return {
-          isVerified: confidence >= 50, // Lower threshold for better matching
+          isVerified: confidence >= 40, // Reasonable threshold for face matching
           studentId: verifiedFace.verifiedPerson.id,
           confidence: confidence
         };
       }
 
-      console.log('Manual Face Recognition: No match found for captured face');
+      console.log('❌ NO MATCH: Face does not match any uploaded student photos');
       return { isVerified: false, studentId: null, confidence: 0 };
 
     } catch (error) {
@@ -228,7 +242,7 @@ const FaceRecognition = () => {
               console.log(`Attempt ${captureAttempts}: Confidence ${confidence}%`);
               
               // Lower threshold for matching - if we get decent confidence, accept it
-              if (isVerified && studentId && confidence >= 30) {
+              if (isVerified && studentId && confidence >= 40) {
                 // Check if already marked by CCTV today
                 const todayAttendance = getTodayAttendance();
                 const existingCCTVRecord = todayAttendance.find(record => 
@@ -241,25 +255,24 @@ const FaceRecognition = () => {
                 setRecognizedStudent(studentId);
                 
                 const today = format(new Date(), "yyyy-MM-dd");
-                console.log(`Marking student ${studentId} as present on ${today}`);
+                const student = students.find(s => s.id === studentId);
+                console.log(`✅ CONFIRMED MATCH: Marking ${student?.name} as present on ${today}`);
                 updateAttendance(studentId, today, 'present');
                 
                 setScanning(false);
                 setCompleted(true);
                 setVerificationFailed(false);
                 
-                const student = students.find(s => s.id === studentId);
-                
                 if (existingCCTVRecord) {
                   toast({
                     title: "Marked Present",
-                    description: `${student?.name} verified and marked present (already recorded via CCTV).`,
+                    description: `${student?.name} face confirmed! Marked present (also recorded via CCTV).`,
                     variant: "default",
                   });
                 } else {
                   toast({
-                    title: "Marked Present",
-                    description: `${student?.name} successfully verified and marked present.`,
+                    title: "Marked Present", 
+                    description: `${student?.name} face confirmed! Successfully marked present.`,
                     variant: "default",
                   });
                 }
@@ -268,6 +281,7 @@ const FaceRecognition = () => {
               
               // Continue trying if not reached max attempts
               if (captureAttempts < MAX_ATTEMPTS) {
+                console.log(`❌ NO MATCH ATTEMPT ${captureAttempts}: Confidence ${confidence}%`);
                 setTimeout(captureAndVerify, 500);
               }
               
@@ -323,7 +337,23 @@ const FaceRecognition = () => {
 
   const handleStartScan = async () => {
     if (students.length === 0) {
-      setError("No students found in the database. Please add students first.");
+      setError("No students found in the database. Please upload student data first.");
+      toast({
+        title: "No Students Found", 
+        description: "Please upload student data first before using face recognition.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const studentsWithPhotos = students.filter(s => s.photo);
+    if (studentsWithPhotos.length === 0) {
+      setError("No student photos found. Please ensure uploaded data includes photos.");
+      toast({
+        title: "No Student Photos",
+        description: "Face recognition requires student photos. Please upload data with photos first.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -341,6 +371,8 @@ const FaceRecognition = () => {
       });
     }
 
+    console.log(`Starting face recognition with ${studentsWithPhotos.length} students with photos`);
+    
     setError("");
     setCompleted(false);
     setScanning(true);
