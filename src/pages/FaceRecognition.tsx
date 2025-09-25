@@ -32,10 +32,11 @@ const FaceRecognition = () => {
   const [lastMatchedId, setLastMatchedId] = useState<string | null>(null);
   const [consecutiveMatches, setConsecutiveMatches] = useState<{[studentId: string]: number}>({});
   
-  const MAX_CAPTURES = 20;
-  const CONFIDENCE_THRESHOLD = 75;
-  const STABLE_MATCHES_REQUIRED = 4;
-  const CONSECUTIVE_MATCHES_REQUIRED = 3;
+  const MAX_CAPTURES = 30;
+  const CONFIDENCE_THRESHOLD = 15; // Lower threshold for easier recognition
+  const STABLE_MATCHES_REQUIRED = 3;
+  const CONSECUTIVE_MATCHES_REQUIRED = 2;
+  const MULTIPLE_SAMPLES = 5; // Take multiple samples for better accuracy
 
   const stopCamera = () => {
     if (stream) {
@@ -96,8 +97,25 @@ const FaceRecognition = () => {
       if (context) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
+        
+        // Clear and draw video frame
+        context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        return canvas.toDataURL('image/jpeg');
+        
+        // Enhance image quality for better recognition
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Increase contrast and brightness for better face recognition
+        for (let i = 0; i < data.length; i += 4) {
+          // Increase contrast
+          data[i] = Math.min(255, Math.max(0, (data[i] - 128) * 1.2 + 128)); // Red
+          data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * 1.2 + 128)); // Green
+          data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * 1.2 + 128)); // Blue
+        }
+        
+        context.putImageData(imageData, 0, 0);
+        return canvas.toDataURL('image/jpeg', 0.95); // Higher quality
       }
     }
     return null;
@@ -180,7 +198,7 @@ const FaceRecognition = () => {
         console.log(`✅ MATCH FOUND: ${verifiedFace.verifiedPerson.name} with ${confidence.toFixed(1)}% confidence`);
         
         return {
-          isVerified: confidence >= 20, // Lower threshold for easier matching
+          isVerified: confidence >= 15, // Even lower threshold for easier matching
           studentId: verifiedFace.verifiedPerson.id,
           confidence: confidence
         };
@@ -233,31 +251,50 @@ const FaceRecognition = () => {
               return;
             }
             
-            const capturedImage = captureFrame();
+            // Take multiple samples for better accuracy
+            const samples = [];
+            for (let i = 0; i < Math.min(MULTIPLE_SAMPLES, MAX_ATTEMPTS - captureAttempts + 1); i++) {
+              const capturedImage = captureFrame();
+              if (capturedImage) {
+                samples.push(capturedImage);
+              }
+              // Small delay between captures
+              if (i < MULTIPLE_SAMPLES - 1) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+              }
+            }
+            
+            // Test all samples and use the best match
+            let bestResult = { isVerified: false, studentId: null, confidence: 0 };
             
             try {
-              const { isVerified, studentId, confidence } = await verifyFaceAgainstDatabase(capturedImage);
-              setMatchConfidence(confidence);
+              for (const sample of samples) {
+                const result = await verifyFaceAgainstDatabase(sample);
+                if (result.confidence > bestResult.confidence) {
+                  bestResult = result;
+                }
+              }
               
-              console.log(`Attempt ${captureAttempts}: Confidence ${confidence}%`);
+              setMatchConfidence(bestResult.confidence);
+              console.log(`Attempt ${captureAttempts}: Best confidence from ${samples.length} samples: ${bestResult.confidence}%`);
               
-              // Lower threshold for matching - if we get decent confidence, accept it
-              if (isVerified && studentId && confidence >= 20) {
+              // Very low threshold for easier matching
+              if (bestResult.isVerified && bestResult.studentId && bestResult.confidence >= 15) {
                 // Check if already marked by CCTV today
                 const todayAttendance = getTodayAttendance();
                 const existingCCTVRecord = todayAttendance.find(record => 
-                  record.personId === studentId && 
+                  record.personId === bestResult.studentId && 
                   record.cameraId && 
                   record.cameraId !== 'manual' && 
                   record.verified
                 );
                 
-                setRecognizedStudent(studentId);
+                setRecognizedStudent(bestResult.studentId);
                 
                 const today = format(new Date(), "yyyy-MM-dd");
-                const student = students.find(s => s.id === studentId);
-                console.log(`✅ CONFIRMED MATCH: Marking ${student?.name} as present on ${today}`);
-                updateAttendance(studentId, today, 'present');
+                const student = students.find(s => s.id === bestResult.studentId);
+                console.log(`✅ CONFIRMED MATCH: Marking ${student?.name} as present on ${today} with ${bestResult.confidence}% confidence`);
+                updateAttendance(bestResult.studentId, today, 'present');
                 
                 setScanning(false);
                 setCompleted(true);
@@ -281,8 +318,8 @@ const FaceRecognition = () => {
               
               // Continue trying if not reached max attempts
               if (captureAttempts < MAX_ATTEMPTS) {
-                console.log(`❌ NO MATCH ATTEMPT ${captureAttempts}: Confidence ${confidence}%`);
-                setTimeout(captureAndVerify, 500);
+                console.log(`❌ NO MATCH ATTEMPT ${captureAttempts}: Best confidence ${bestResult.confidence}%`);
+                setTimeout(captureAndVerify, 300); // Faster retry for better user experience
               }
               
             } catch (error) {
@@ -290,7 +327,7 @@ const FaceRecognition = () => {
               
               // Continue trying unless max attempts reached
               if (captureAttempts < MAX_ATTEMPTS) {
-                setTimeout(captureAndVerify, 500);
+                setTimeout(captureAndVerify, 300);
               } else {
                 // Mark as absent after max attempts with no recognition
                 setError("Face not recognized. Marked as absent.");
