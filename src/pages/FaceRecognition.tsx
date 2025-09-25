@@ -286,6 +286,7 @@ const FaceRecognition = () => {
     <div className="min-h-screen bg-slate-900 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
 
+        {/* Face Recognition Interface */}
         <Card className="bg-slate-800 border-slate-700 shadow-xl">
           <CardContent className="space-y-4">
             {/* Camera Feed */}
@@ -328,27 +329,87 @@ const FaceRecognition = () => {
                   {isScanning ? (
                     <Loader2 className="h-12 w-12 text-purple-400 animate-spin mb-4" />
                   ) : (
-                  <CameraOff className="h-16 w-16 text-slate-600 mb-4" />
+                    <>
+                      <CameraOff className="h-16 w-16 text-slate-600 mb-4" />
+                      <p className="text-slate-400">Position your face for scanning</p>
+                    </>
                   )}
                 </div>
               )}
             </div>
           </CardContent>
           <CardFooter>
-                    <Button 
-                      onClick={handleStartRecognition} 
-                      disabled={isScanning}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-lg font-semibold"
-                    >
-                      {isScanning ? (
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      ) : (
-                        "Start"
-                      )}
-                    </Button>
+            <Button 
+              onClick={handleStartRecognition} 
+              disabled={isScanning}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-lg font-semibold"
+            >
+              {isScanning ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Scanning...
+                </>
+              ) : (
+                "Start Face Scan"
+              )}
+            </Button>
           </CardFooter>
         </Card>
 
+        {/* Recognition Results */}
+        {recognitionResult.type && (
+          <Card className={`border-2 shadow-xl ${recognitionResult.type === 'present' 
+            ? 'bg-green-900/20 border-green-600' 
+            : 'bg-red-900/20 border-red-600'
+          }`}>
+            <CardContent className="p-6">
+              {recognitionResult.type === 'present' && recognitionResult.student ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex-shrink-0">
+                    <Avatar className="h-16 w-16 border-2 border-green-500">
+                      {recognitionResult.student.photo ? (
+                        <AvatarImage src={recognitionResult.student.photo} alt={recognitionResult.student.name} />
+                      ) : (
+                        <AvatarFallback className="bg-green-700 text-green-100">
+                          <User className="h-8 w-8" />
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="h-6 w-6 text-green-400" />
+                      <h3 className="text-xl font-bold text-green-400">Present</h3>
+                    </div>
+                    <p className="text-green-300 text-lg">
+                      {recognitionResult.student.name} - {recognitionResult.student.usn}
+                    </p>
+                    <p className="text-green-300 text-sm">
+                      Marked at {recognitionResult.timestamp}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="h-16 w-16 rounded-full bg-red-700 flex items-center justify-center border-2 border-red-500">
+                      <UserX className="h-8 w-8 text-red-100" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircle className="h-6 w-6 text-red-400" />
+                      <h3 className="text-xl font-bold text-red-400">Absent</h3>
+                    </div>
+                    <p className="text-red-300 text-lg">
+                      Face not recognized
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
