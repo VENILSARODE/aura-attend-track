@@ -619,44 +619,6 @@ const FaceRecognition = () => {
                   <div className="absolute inset-0 pointer-events-none">
                     {renderPositionGuidance()}
                     
-                    {faceBounds && (
-                      <div 
-                        className="absolute border-2 border-green-400 rounded-md bg-green-400/10"
-                        style={{
-                          left: `${Math.max(0, (faceBounds.x / 640) * 100)}%`,
-                          top: `${Math.max(0, (faceBounds.y / 480) * 100)}%`,
-                          width: `${Math.min(100, (faceBounds.width / 640) * 100)}%`,
-                          height: `${Math.min(100, (faceBounds.height / 480) * 100)}%`
-                        }}
-                      />
-                    )}
-                    
-                    {!faceBounds && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="relative">
-                          <div className="w-56 h-64 border-2 rounded-md border-primary animate-pulse bg-primary/5"></div>
-                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-white text-sm font-medium bg-black/70 px-3 py-1 rounded">
-                            Position your face here
-                          </div>
-                          <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-white text-xs bg-black/70 px-2 py-1 rounded">
-                            Stand 2-3 feet from camera
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {faceDetected && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="relative">
-                          <div className="w-56 h-64 rounded-md border-2 border-green-500 animate-pulse bg-green-500/20"></div>
-                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-green-400 text-sm font-medium bg-black/70 px-3 py-1 rounded flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                            Face Detected - Stay Still
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                       <div className="text-center">
                         <p className="text-sm text-white font-medium mb-1">
