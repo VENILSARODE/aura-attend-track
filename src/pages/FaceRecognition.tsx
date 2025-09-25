@@ -288,7 +288,6 @@ const FaceRecognition = () => {
         {/* Title */}
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white mb-2">Face Recognition</h1>
-          <p className="text-slate-400">Automated attendance marking using face recognition</p>
         </div>
 
         {/* Main Camera Panel */}
