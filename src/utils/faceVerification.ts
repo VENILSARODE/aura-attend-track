@@ -1,6 +1,6 @@
 import { pipeline } from '@huggingface/transformers';
 
-interface DetectedFace {
+interface DetectedEyes {
   id: number;
   x: number;
   y: number;
@@ -20,28 +20,28 @@ interface StoredPerson {
   id: string;
   name: string;
   role: string;
-  faceEmbedding?: number[];
+  eyeEmbedding?: number[];
   image?: string;
 }
 
-class FaceVerificationService {
-  private faceDetector: any = null;
+class EyeRecognitionService {
+  private eyeDetector: any = null;
   private isInitialized = false;
 
   async initialize() {
     if (this.isInitialized) return;
 
     try {
-      // Initialize face detection model with fallback
+      // Initialize eye detection model with fallback
       try {
-        this.faceDetector = await pipeline(
+        this.eyeDetector = await pipeline(
           'object-detection',
           'Xenova/yolos-tiny',
           { device: 'webgpu' }
         );
       } catch (webgpuError) {
         console.log('WebGPU not supported, falling back to WASM');
-        this.faceDetector = await pipeline(
+        this.eyeDetector = await pipeline(
           'object-detection',
           'Xenova/yolos-tiny',
           { device: 'wasm' }
@@ -49,15 +49,15 @@ class FaceVerificationService {
       }
       
       this.isInitialized = true;
-      console.log('Face verification service initialized');
+      console.log('Eye recognition service initialized');
     } catch (error) {
-      console.error('Failed to initialize face verification:', error);
+      console.error('Failed to initialize eye recognition:', error);
       this.isInitialized = false;
     }
   }
 
-  // Generate face embedding from image data with improved error handling
-  async generateFaceEmbedding(imageData: string | HTMLImageElement | HTMLCanvasElement): Promise<number[]> {
+  // Generate eye embedding from image data with improved error handling
+  async generateEyeEmbedding(imageData: string | HTMLImageElement | HTMLCanvasElement): Promise<number[]> {
     try {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -96,22 +96,22 @@ class FaceVerificationService {
       
       return this.extractImageFeatures(canvas, ctx);
     } catch (error) {
-      console.warn('Error generating face embedding, using fallback:', error);
+      console.warn('Error generating eye embedding, using fallback:', error);
       return this.getFallbackEmbedding();
     }
   }
 
-  // Generate face embedding from detected face coordinates (synchronous)
-  generateFaceEmbeddingSync(faceData: { x: number; y: number; width: number; height: number }): number[] {
-    // Generate consistent embedding based on face properties and enhanced features
-    const seed = faceData.x + faceData.y + faceData.width + faceData.height;
+  // Generate eye embedding from detected eye coordinates (synchronous)
+  generateEyeEmbeddingSync(eyeData: { x: number; y: number; width: number; height: number }): number[] {
+    // Generate consistent embedding based on eye properties and enhanced features
+    const seed = eyeData.x + eyeData.y + eyeData.width + eyeData.height;
     const embedding: number[] = [];
     
-    // Create more sophisticated features based on face dimensions and position
-    const aspectRatio = faceData.width / faceData.height;
-    const area = faceData.width * faceData.height;
-    const centerX = faceData.x + faceData.width / 2;
-    const centerY = faceData.y + faceData.height / 2;
+    // Create more sophisticated features based on eye dimensions and position
+    const aspectRatio = eyeData.width / eyeData.height;
+    const area = eyeData.width * eyeData.height;
+    const centerX = eyeData.x + eyeData.width / 2;
+    const centerY = eyeData.y + eyeData.height / 2;
     
     for (let i = 0; i < 128; i++) {
       let feature = Math.sin(seed + i) * Math.cos(seed * i);
@@ -142,7 +142,7 @@ class FaceVerificationService {
     return this.normalizeEmbedding(embedding);
   }
 
-  // Extract features from image for face embedding with enhanced processing
+  // Extract features from image for eye embedding with enhanced processing
   private extractImageFeatures(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): number[] {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
@@ -313,48 +313,48 @@ class FaceVerificationService {
     return Math.max(0, Math.min(1, finalSimilarity));
   }
 
-  // Verify faces against stored database (async version for proper face matching)
-  async verifyFacesAsync(detectedFaces: DetectedFace[], storedPersons: StoredPerson[]): Promise<DetectedFace[]> {
+  // Verify eyes against stored database (async version for proper eye matching)
+  async verifyEyesAsync(detectedEyes: DetectedEyes[], storedPersons: StoredPerson[]): Promise<DetectedEyes[]> {
     if (!this.isInitialized || storedPersons.length === 0) {
-      console.log('Face Verification: Service not initialized or no stored persons available');
-      return detectedFaces;
+      console.log('Eye Recognition: Service not initialized or no stored persons available');
+      return detectedEyes;
     }
 
     const SIMILARITY_THRESHOLD = 0.15; // Very low threshold for easier matching
 
-    console.log(`Face Verification: Processing ${detectedFaces.length} detected faces against ${storedPersons.length} stored persons`);
+    console.log(`Eye Recognition: Processing ${detectedEyes.length} detected eyes against ${storedPersons.length} stored persons`);
     console.log('Available students for matching:', storedPersons.map(p => ({ name: p.name, id: p.id, hasImage: !!p.image })));
 
-    const verifiedFaces = await Promise.all(
-      detectedFaces.map(async (face, faceIndex) => {
-        // Generate embedding for detected face
-        const faceEmbedding = this.generateFaceEmbeddingSync(face);
-        face.embedding = faceEmbedding;
+    const verifiedEyes = await Promise.all(
+      detectedEyes.map(async (eyes, eyeIndex) => {
+        // Generate embedding for detected eyes
+        const eyeEmbedding = this.generateEyeEmbeddingSync(eyes);
+        eyes.embedding = eyeEmbedding;
 
         let bestMatch: StoredPerson | null = null;
         let bestSimilarity = 0;
 
-        console.log(`Face ${faceIndex + 1}: Generated embedding (length: ${faceEmbedding.length})`);
+        console.log(`Eyes ${eyeIndex + 1}: Generated embedding (length: ${eyeEmbedding.length})`);
 
         // Compare with all stored persons
         for (const person of storedPersons) {
-          if (!person.faceEmbedding && person.image) {
+          if (!person.eyeEmbedding && person.image) {
             // Generate embedding for stored person from their photo
             try {
-              console.log(`Generating embedding from photo for ${person.name}...`);
-              person.faceEmbedding = await this.generateFaceEmbedding(person.image);
-              console.log(`✓ Generated photo embedding for ${person.name} (length: ${person.faceEmbedding.length})`);
+              console.log(`Generating eye embedding from photo for ${person.name}...`);
+              person.eyeEmbedding = await this.generateEyeEmbedding(person.image);
+              console.log(`✓ Generated photo eye embedding for ${person.name} (length: ${person.eyeEmbedding.length})`);
             } catch (error) {
-              console.warn(`✗ Failed to generate embedding for ${person.name}:`, error);
-              person.faceEmbedding = this.getFallbackEmbedding();
+              console.warn(`✗ Failed to generate eye embedding for ${person.name}:`, error);
+              person.eyeEmbedding = this.getFallbackEmbedding();
             }
-          } else if (!person.faceEmbedding) {
+          } else if (!person.eyeEmbedding) {
             // Fallback embedding if no image available
-            console.log(`Using fallback embedding for ${person.name} (no photo)`);
-            person.faceEmbedding = this.getFallbackEmbedding();
+            console.log(`Using fallback eye embedding for ${person.name} (no photo)`);
+            person.eyeEmbedding = this.getFallbackEmbedding();
           }
 
-          const similarity = this.calculateSimilarity(faceEmbedding, person.faceEmbedding);
+          const similarity = this.calculateSimilarity(eyeEmbedding, person.eyeEmbedding);
           console.log(`→ ${person.name}: ${(similarity * 100).toFixed(2)}% similarity`);
           
           if (similarity > bestSimilarity && similarity > SIMILARITY_THRESHOLD) {
@@ -366,48 +366,48 @@ class FaceVerificationService {
 
         // Add verification result
         if (bestMatch) {
-          console.log(`🎯 FINAL MATCH for face ${faceIndex + 1}: ${bestMatch.name} with ${(bestSimilarity * 100).toFixed(2)}% confidence`);
-          face.verifiedPerson = {
+          console.log(`🎯 FINAL MATCH for eyes ${eyeIndex + 1}: ${bestMatch.name} with ${(bestSimilarity * 100).toFixed(2)}% confidence`);
+          eyes.verifiedPerson = {
             name: bestMatch.name,
             id: bestMatch.id,
             role: bestMatch.role,
             confidence: bestSimilarity
           };
         } else {
-          console.log(`❌ NO MATCH found for face ${faceIndex + 1} above threshold (${(SIMILARITY_THRESHOLD * 100).toFixed(1)}%)`);
+          console.log(`❌ NO MATCH found for eyes ${eyeIndex + 1} above threshold (${(SIMILARITY_THRESHOLD * 100).toFixed(1)}%)`);
         }
 
-        return face;
+        return eyes;
       })
     );
 
-    return verifiedFaces;
+    return verifiedEyes;
   }
 
-  // Verify faces against stored database (synchronous version for backwards compatibility)
-  verifyFaces(detectedFaces: DetectedFace[], storedPersons: StoredPerson[]): DetectedFace[] {
+  // Verify eyes against stored database (synchronous version for backwards compatibility)
+  verifyEyes(detectedEyes: DetectedEyes[], storedPersons: StoredPerson[]): DetectedEyes[] {
     if (!this.isInitialized || storedPersons.length === 0) {
-      return detectedFaces;
+      return detectedEyes;
     }
 
     const SIMILARITY_THRESHOLD = 0.65;
 
-    return detectedFaces.map(face => {
-      // Generate embedding for detected face
-      const faceEmbedding = this.generateFaceEmbeddingSync(face);
-      face.embedding = faceEmbedding;
+    return detectedEyes.map(eyes => {
+      // Generate embedding for detected eyes
+      const eyeEmbedding = this.generateEyeEmbeddingSync(eyes);
+      eyes.embedding = eyeEmbedding;
 
       let bestMatch: StoredPerson | null = null;
       let bestSimilarity = 0;
 
       // Compare with all stored persons
       for (const person of storedPersons) {
-        if (!person.faceEmbedding) {
+        if (!person.eyeEmbedding) {
           // Generate fallback embedding for stored person
-          person.faceEmbedding = this.getFallbackEmbedding();
+          person.eyeEmbedding = this.getFallbackEmbedding();
         }
 
-        const similarity = this.calculateSimilarity(faceEmbedding, person.faceEmbedding);
+        const similarity = this.calculateSimilarity(eyeEmbedding, person.eyeEmbedding);
         
         if (similarity > bestSimilarity && similarity > SIMILARITY_THRESHOLD) {
           bestMatch = person;
@@ -417,7 +417,7 @@ class FaceVerificationService {
 
       // Add verification result
       if (bestMatch) {
-        face.verifiedPerson = {
+        eyes.verifiedPerson = {
           name: bestMatch.name,
           id: bestMatch.id,
           role: bestMatch.role,
@@ -425,32 +425,32 @@ class FaceVerificationService {
         };
       }
 
-      return face;
+      return eyes;
     });
   }
 
-  // Simulate face detection for camera feed
-  detectFacesInFrame(frameCount: number, cameraId: string): DetectedFace[] {
+  // Simulate eye detection for camera feed
+  detectEyesInFrame(frameCount: number, cameraId: string): DetectedEyes[] {
     const time = frameCount * 0.1;
-    const faces: DetectedFace[] = [];
+    const eyes: DetectedEyes[] = [];
 
-    // Simulate 1-3 faces per camera
-    const numFaces = Math.floor(Math.random() * 3) + 1;
+    // Simulate 1 pair of eyes per detection
+    const numEyes = 1;
     
-    for (let i = 0; i < numFaces; i++) {
-      faces.push({
+    for (let i = 0; i < numEyes; i++) {
+      eyes.push({
         id: i + 1,
-        x: 80 + Math.sin(time + i) * 60 + Math.random() * 100,
-        y: 60 + Math.cos(time * 0.5 + i) * 40 + Math.random() * 80,
-        width: 50 + Math.random() * 20,
-        height: 65 + Math.random() * 25,
+        x: 120 + Math.sin(time + i) * 30 + Math.random() * 50,
+        y: 80 + Math.cos(time * 0.5 + i) * 20 + Math.random() * 40,
+        width: 80 + Math.random() * 20, // Eyes are typically wider than tall
+        height: 30 + Math.random() * 10, // Smaller height for eye region
         confidence: 0.75 + Math.random() * 0.2
       });
     }
 
-    return faces;
+    return eyes;
   }
 }
 
-export const faceVerificationService = new FaceVerificationService();
-export type { DetectedFace, StoredPerson };
+export const eyeRecognitionService = new EyeRecognitionService();
+export type { DetectedEyes, StoredPerson };
