@@ -601,7 +601,7 @@ const FaceRecognition = () => {
                   autoPlay 
                   muted 
                   playsInline 
-                  className="w-full h-full object-cover transform scale-x-[-1]"
+                  className="w-full h-full object-cover"
                   style={{ 
                     display: 'block',
                     background: '#000'
