@@ -285,19 +285,8 @@ const FaceRecognition = () => {
   return (
     <div className="min-h-screen bg-slate-900 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Title */}
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-white mb-2">Eye Recognition</h1>
-        </div>
 
-        {/* Main Camera Panel */}
         <Card className="bg-slate-800 border-slate-700 shadow-xl">
-          <CardHeader className="text-center">
-            <CardTitle className="flex items-center justify-center gap-2 text-white">
-              <Camera className="h-6 w-6 text-purple-400" />
-              <span>Live Camera Preview</span>
-            </CardTitle>
-          </CardHeader>
           <CardContent className="space-y-4">
             {/* Camera Feed */}
             <div className="relative aspect-video bg-slate-900 rounded-lg overflow-hidden border border-slate-700">
@@ -332,15 +321,6 @@ const FaceRecognition = () => {
                     </div>
                   )}
                   
-                  {/* No Eyes Detected Message */}
-                  {!eyesDetected && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="bg-red-900/80 text-red-300 px-4 py-2 rounded-lg border border-red-600">
-                        <p className="text-sm font-medium">No eyes detected. Please align your eyes in the camera.</p>
-                      </div>
-                    </div>
-                  )}
-                  
                   <canvas ref={canvasRef} className="hidden" />
                 </>
               ) : (
@@ -348,86 +328,27 @@ const FaceRecognition = () => {
                   {isScanning ? (
                     <Loader2 className="h-12 w-12 text-purple-400 animate-spin mb-4" />
                   ) : (
-                    <>
-                      <CameraOff className="h-16 w-16 text-slate-600 mb-4" />
-                      <p className="text-slate-400">Camera preview will appear here</p>
-                    </>
+                  <CameraOff className="h-16 w-16 text-slate-600 mb-4" />
                   )}
                 </div>
               )}
             </div>
           </CardContent>
           <CardFooter>
-            {/* Start Face Recognition Button */}
                     <Button 
                       onClick={handleStartRecognition} 
                       disabled={isScanning}
                       className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-lg font-semibold"
                     >
                       {isScanning ? (
-                        <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Processing...
-                        </>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       ) : (
-                        "Start Eye Recognition"
+                        "Start"
                       )}
                     </Button>
           </CardFooter>
         </Card>
 
-        {/* Recognition Result Cards */}
-        {recognitionResult.type && (
-          <Card className={`border-2 shadow-xl ${recognitionResult.type === 'present' 
-            ? 'bg-green-900/20 border-green-600' 
-            : 'bg-red-900/20 border-red-600'
-          }`}>
-            <CardContent className="p-6">
-              {recognitionResult.type === 'present' && recognitionResult.student ? (
-                <div className="flex items-center gap-4">
-                  <div className="flex-shrink-0">
-                    <Avatar className="h-16 w-16 border-2 border-green-500">
-                      {recognitionResult.student.photo ? (
-                        <AvatarImage src={recognitionResult.student.photo} alt={recognitionResult.student.name} />
-                      ) : (
-                        <AvatarFallback className="bg-green-700 text-green-100">
-                          <User className="h-8 w-8" />
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="h-6 w-6 text-green-400" />
-                      <h3 className="text-xl font-bold text-green-400">Attendance Marked Present</h3>
-                    </div>
-                    <p className="text-green-300 text-lg">
-                      ✅ Attendance marked Present for <span className="font-semibold">{recognitionResult.student.name}</span>, 
-                      USN: <span className="font-semibold">{recognitionResult.student.usn}</span> at {recognitionResult.timestamp}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-4">
-                  <div className="flex-shrink-0">
-                    <div className="h-16 w-16 rounded-full bg-red-700 flex items-center justify-center border-2 border-red-500">
-                      <UserX className="h-8 w-8 text-red-100" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertCircle className="h-6 w-6 text-red-400" />
-                      <h3 className="text-xl font-bold text-red-400">Attendance Could Not Be Verified</h3>
-                    </div>
-                    <p className="text-red-300 text-lg">
-                      ❌ Attendance could not be verified. Marked Absent.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );
