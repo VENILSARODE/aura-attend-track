@@ -305,42 +305,87 @@ const FaceRecognition = () => {
                     }}
                   />
                   
-                  {/* Face Detection Overlay */}
+                  {/* Top Status Bar */}
+                  <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
+                    <div className="bg-black/70 text-white px-3 py-2 rounded-lg text-sm font-medium">
+                      Face Recognition
+                    </div>
+                    <div className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                      eyesDetected ? 'bg-green-600 text-white' : 'bg-yellow-600 text-white'
+                    }`}>
+                      {eyesDetected ? 'Ready to Scan' : 'Position Your Face'}
+                    </div>
+                  </div>
+                  
+                  {/* Face Positioning Guide */}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="relative">
-                      {/* Face Guide Circle */}
-                      <div className="w-64 h-64 border-2 border-white/30 rounded-full flex items-center justify-center">
-                        <div className="text-white/70 text-sm font-medium">Position your face here</div>
+                      {/* Outer Circle Guide */}
+                      <div className={`w-80 h-80 border-4 rounded-full transition-all duration-300 ${
+                        eyesDetected ? 'border-green-400 shadow-lg shadow-green-400/30' : 'border-white/50'
+                      }`}>
+                        {/* Inner Face Area */}
+                        <div className="absolute inset-8 border-2 border-dashed border-white/30 rounded-full flex flex-col items-center justify-center">
+                          {!eyesDetected && (
+                            <div className="text-center">
+                              <Camera className="h-8 w-8 text-white/60 mx-auto mb-2" />
+                              <p className="text-white/80 text-sm font-medium">Look at the camera</p>
+                              <p className="text-white/60 text-xs">Keep your eyes visible</p>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Corner Guides */}
+                        <div className="absolute -top-2 -left-2 w-6 h-6 border-l-4 border-t-4 border-white/70"></div>
+                        <div className="absolute -top-2 -right-2 w-6 h-6 border-r-4 border-t-4 border-white/70"></div>
+                        <div className="absolute -bottom-2 -left-2 w-6 h-6 border-l-4 border-b-4 border-white/70"></div>
+                        <div className="absolute -bottom-2 -right-2 w-6 h-6 border-r-4 border-b-4 border-white/70"></div>
                       </div>
                     </div>
                   </div>
                   
                   {/* Scanning Overlay */}
                   {isScanning && (
-                    <div className="absolute inset-0 bg-blue-900/20 flex items-center justify-center">
-                      <div className="bg-blue-900/80 text-blue-100 px-4 py-2 rounded-lg flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Scanning Face...</span>
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 to-purple-600/30 flex items-center justify-center animate-pulse">
+                      <div className="bg-black/80 text-white px-6 py-4 rounded-xl flex items-center gap-3 shadow-2xl">
+                        <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
+                        <div>
+                          <p className="font-semibold">Scanning in Progress</p>
+                          <p className="text-sm text-gray-300">Please hold still...</p>
+                        </div>
                       </div>
                     </div>
                   )}
                   
-                  {/* Green Bounding Box for Detected Eyes */}
+                  {/* Eye Detection Indicator */}
                   {eyeBounds && eyesDetected && !isScanning && (
                     <div 
-                      className="absolute border-2 border-green-400 rounded-md bg-green-400/10"
+                      className="absolute border-3 border-green-400 rounded-lg bg-green-400/20 animate-pulse"
                       style={{
-                        left: `${eyeBounds.x}px`,
-                        top: `${eyeBounds.y}px`,
-                        width: `${eyeBounds.width}px`,
-                        height: `${eyeBounds.height}px`
+                        left: `${eyeBounds.x - 10}px`,
+                        top: `${eyeBounds.y - 10}px`,
+                        width: `${eyeBounds.width + 20}px`,
+                        height: `${eyeBounds.height + 20}px`
                       }}
                     >
-                      <div className="absolute -top-6 left-0 text-xs text-green-400 font-semibold bg-green-900/80 px-2 py-1 rounded">
-                        Eyes Detected
+                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
+                        ✓ Eyes Detected
                       </div>
                     </div>
                   )}
+                  
+                  {/* Bottom Instructions */}
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <div className="bg-black/70 text-white px-4 py-3 rounded-lg text-center">
+                      {!eyesDetected ? (
+                        <p className="text-sm">Move closer and look directly at the camera</p>
+                      ) : !isScanning ? (
+                        <p className="text-sm text-green-300">✓ Ready! Click "Start Face Scan" to mark attendance</p>
+                      ) : (
+                        <p className="text-sm text-blue-300">Processing... Please remain still</p>
+                      )}
+                    </div>
+                  </div>
                   
                   <canvas ref={canvasRef} className="hidden" />
                 </>
