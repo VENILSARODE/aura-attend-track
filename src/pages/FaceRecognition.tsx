@@ -305,8 +305,28 @@ const FaceRecognition = () => {
                     }}
                   />
                   
+                  {/* Face Detection Overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="relative">
+                      {/* Face Guide Circle */}
+                      <div className="w-64 h-64 border-2 border-white/30 rounded-full flex items-center justify-center">
+                        <div className="text-white/70 text-sm font-medium">Position your face here</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Scanning Overlay */}
+                  {isScanning && (
+                    <div className="absolute inset-0 bg-blue-900/20 flex items-center justify-center">
+                      <div className="bg-blue-900/80 text-blue-100 px-4 py-2 rounded-lg flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Scanning Face...</span>
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Green Bounding Box for Detected Eyes */}
-                  {eyeBounds && eyesDetected && (
+                  {eyeBounds && eyesDetected && !isScanning && (
                     <div 
                       className="absolute border-2 border-green-400 rounded-md bg-green-400/10"
                       style={{
