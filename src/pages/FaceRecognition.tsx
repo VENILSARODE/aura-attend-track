@@ -626,11 +626,7 @@ const FaceRecognition = () => {
                           width: `${Math.min(100, (faceBounds.width / 640) * 100)}%`,
                           height: `${Math.min(100, (faceBounds.height / 480) * 100)}%`
                         }}
-                      >
-                        <div className="absolute -top-6 left-0 text-xs text-green-400 font-medium bg-green-900/80 px-2 py-1 rounded">
-                          Face Detected
-                        </div>
-                      </div>
+                      />
                     )}
                     
                     {!faceBounds && (
