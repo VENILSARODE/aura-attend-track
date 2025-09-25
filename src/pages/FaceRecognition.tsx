@@ -499,42 +499,44 @@ const FaceRecognition = () => {
     
     let message = "";
     let Icon = null;
+    let bgColor = "from-black/70";
     
     switch(facePosition) {
       case "look_forward":
-        message = "Look directly at the camera";
+        message = "👀 Look directly at the camera";
         Icon = Camera;
         break;
       case "center_face":
-        message = "Center your face in the frame";
+        message = "🎯 Center your face in the frame";
         Icon = Camera;
         break;
       case "look_left":
-        message = "Turn slightly to the left";
+        message = "↪️ Turn slightly to the left";
         Icon = MoveLeft;
         break;
       case "look_right":
-        message = "Turn slightly to the right";
+        message = "↩️ Turn slightly to the right";
         Icon = MoveRight;
         break;
       case "look_up":
-        message = "Tilt your head slightly up";
+        message = "⬆️ Tilt your head slightly up";
         Icon = MoveUp;
         break;
       case "look_down":
-        message = "Tilt your head slightly down";
+        message = "⬇️ Tilt your head slightly down";
         Icon = MoveDown;
         break;
       case "good":
-        message = "Perfect! Recognizing face...";
+        message = "✅ Perfect! Stay still while recognizing...";
         Icon = CheckCircle2;
+        bgColor = "from-green-600/70";
         break;
     }
     
     return (
-      <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 p-3 rounded-t-md">
+      <div className={`absolute inset-x-0 top-0 bg-gradient-to-b ${bgColor} to-transparent p-4 rounded-t-md`}>
         <div className="flex items-center justify-center gap-2">
-          {Icon && <Icon className="h-5 w-5 text-primary animate-pulse" />}
+          {Icon && <Icon className="h-5 w-5 text-white animate-pulse" />}
           <p className="text-sm text-center text-white font-medium">{message}</p>
         </div>
       </div>
@@ -631,22 +633,46 @@ const FaceRecognition = () => {
                     
                     {!faceBounds && (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-56 h-64 border-2 rounded-md
-                                    border-primary animate-pulse"></div>
+                        <div className="relative">
+                          <div className="w-56 h-64 border-2 rounded-md border-primary animate-pulse bg-primary/5"></div>
+                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-white text-sm font-medium bg-black/70 px-3 py-1 rounded">
+                            Position your face here
+                          </div>
+                          <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-white text-xs bg-black/70 px-2 py-1 rounded">
+                            Stand 2-3 feet from camera
+                          </div>
+                        </div>
                       </div>
                     )}
                     
                     {faceDetected && (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-56 h-64 rounded-md border-2 border-green-500 
-                                      animate-pulse bg-green-500/10"></div>
+                        <div className="relative">
+                          <div className="w-56 h-64 rounded-md border-2 border-green-500 animate-pulse bg-green-500/20"></div>
+                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-green-400 text-sm font-medium bg-black/70 px-3 py-1 rounded flex items-center gap-2">
+                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                            Face Detected - Stay Still
+                          </div>
+                        </div>
                       </div>
                     )}
                     
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 p-3">
-                      <p className="text-sm text-center text-white font-medium">
-                        {faceDetected ? "Face detected! Processing..." : "Looking for face..."}
-                      </p>
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                      <div className="text-center">
+                        <p className="text-sm text-white font-medium mb-1">
+                          {faceDetected ? "🎯 Face detected! Processing..." : "👤 Looking for face..."}
+                        </p>
+                        <p className="text-xs text-gray-300">
+                          {faceDetected ? `Attempt ${captureCount}/${MAX_CAPTURES}` : "Move closer if not detected"}
+                        </p>
+                        {matchConfidence > 0 && (
+                          <div className="mt-2">
+                            <div className="text-xs text-green-400">
+                              Match confidence: {matchConfidence.toFixed(1)}%
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
