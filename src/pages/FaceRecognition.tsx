@@ -495,52 +495,8 @@ const FaceRecognition = () => {
   };
 
   const renderPositionGuidance = () => {
-    if (!scanning || !facePosition) return null;
-    
-    let message = "";
-    let Icon = null;
-    let bgColor = "from-black/70";
-    
-    switch(facePosition) {
-      case "look_forward":
-        message = "👀 Look directly at the camera";
-        Icon = Camera;
-        break;
-      case "center_face":
-        message = "🎯 Center your face in the frame";
-        Icon = Camera;
-        break;
-      case "look_left":
-        message = "↪️ Turn slightly to the left";
-        Icon = MoveLeft;
-        break;
-      case "look_right":
-        message = "↩️ Turn slightly to the right";
-        Icon = MoveRight;
-        break;
-      case "look_up":
-        message = "⬆️ Tilt your head slightly up";
-        Icon = MoveUp;
-        break;
-      case "look_down":
-        message = "⬇️ Tilt your head slightly down";
-        Icon = MoveDown;
-        break;
-      case "good":
-        message = "✅ Perfect! Stay still while recognizing...";
-        Icon = CheckCircle2;
-        bgColor = "from-green-600/70";
-        break;
-    }
-    
-    return (
-      <div className={`absolute inset-x-0 top-0 bg-gradient-to-b ${bgColor} to-transparent p-4 rounded-t-md`}>
-        <div className="flex items-center justify-center gap-2">
-          {Icon && <Icon className="h-5 w-5 text-white animate-pulse" />}
-          <p className="text-sm text-center text-white font-medium">{message}</p>
-        </div>
-      </div>
-    );
+    // Function removed - no guidance prompts
+    return null;
   };
 
   return (
@@ -617,25 +573,7 @@ const FaceRecognition = () => {
                 
                 {scanning && (
                   <div className="absolute inset-0 pointer-events-none">
-                    {renderPositionGuidance()}
-                    
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                      <div className="text-center">
-                        <p className="text-sm text-white font-medium mb-1">
-                          {faceDetected ? "🎯 Face detected! Processing..." : "👤 Looking for face..."}
-                        </p>
-                        <p className="text-xs text-gray-300">
-                          {faceDetected ? `Attempt ${captureCount}/${MAX_CAPTURES}` : "Move closer if not detected"}
-                        </p>
-                        {matchConfidence > 0 && (
-                          <div className="mt-2">
-                            <div className="text-xs text-green-400">
-                              Match confidence: {matchConfidence.toFixed(1)}%
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    {/* Clean interface - no prompts */}
                   </div>
                 )}
                 
