@@ -94,28 +94,48 @@ const FaceRecognition = () => {
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
       
-      if (context) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+      if (context && video.readyState >= 2) { // Video is loaded enough to get dimensions
+        // Validate video dimensions before proceeding
+        const videoWidth = video.videoWidth || 640;
+        const videoHeight = video.videoHeight || 480;
         
-        // Clear and draw video frame
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        console.log(`Capturing frame: ${videoWidth}x${videoHeight}, readyState: ${video.readyState}`);
         
-        // Enhance image quality for better recognition
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        
-        // Increase contrast and brightness for better face recognition
-        for (let i = 0; i < data.length; i += 4) {
-          // Increase contrast
-          data[i] = Math.min(255, Math.max(0, (data[i] - 128) * 1.2 + 128)); // Red
-          data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * 1.2 + 128)); // Green
-          data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * 1.2 + 128)); // Blue
+        if (videoWidth === 0 || videoHeight === 0) {
+          console.warn('Video dimensions are 0, skipping capture');
+          return null;
         }
         
-        context.putImageData(imageData, 0, 0);
-        return canvas.toDataURL('image/jpeg', 0.95); // Higher quality
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+        
+        try {
+          // Clear and draw video frame
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          // Enhance image quality for better recognition
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+          
+          // Increase contrast and brightness for better face recognition
+          for (let i = 0; i < data.length; i += 4) {
+            // Increase contrast
+            data[i] = Math.min(255, Math.max(0, (data[i] - 128) * 1.2 + 128)); // Red
+            data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * 1.2 + 128)); // Green
+            data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * 1.2 + 128)); // Blue
+          }
+          
+          context.putImageData(imageData, 0, 0);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+          console.log('Frame captured successfully, data URL length:', dataUrl.length);
+          return dataUrl;
+        } catch (error) {
+          console.error('Error capturing frame:', error);
+          return null;
+        }
+      } else {
+        console.warn('Video not ready for capture, readyState:', video?.readyState);
       }
     }
     return null;
@@ -253,15 +273,29 @@ const FaceRecognition = () => {
             
             // Take multiple samples for better accuracy
             const samples = [];
+            console.log(`Taking ${MULTIPLE_SAMPLES} samples for attempt ${captureAttempts}`);
+            
             for (let i = 0; i < Math.min(MULTIPLE_SAMPLES, MAX_ATTEMPTS - captureAttempts + 1); i++) {
               const capturedImage = captureFrame();
+              console.log(`Sample ${i + 1}: ${capturedImage ? 'Success' : 'Failed'} (length: ${capturedImage?.length || 0})`);
+              
               if (capturedImage) {
                 samples.push(capturedImage);
               }
               // Small delay between captures
               if (i < MULTIPLE_SAMPLES - 1) {
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => setTimeout(resolve, 200)); // Slightly longer delay
               }
+            }
+            
+            console.log(`Collected ${samples.length} valid samples out of ${MULTIPLE_SAMPLES} attempts`);
+            
+            if (samples.length === 0) {
+              console.warn('No valid samples captured, retrying...');
+              if (captureAttempts < MAX_ATTEMPTS) {
+                setTimeout(captureAndVerify, 500);
+              }
+              return;
             }
             
             // Test all samples and use the best match
@@ -365,10 +399,31 @@ const FaceRecognition = () => {
       
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        // Wait for video to be ready
-        await new Promise((resolve) => {
+        
+        // Wait for video to be ready with proper loading
+        await new Promise((resolve, reject) => {
           if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => resolve(void 0);
+            const video = videoRef.current;
+            
+            const onLoadedData = () => {
+              console.log('Video loaded, dimensions:', video.videoWidth, 'x', video.videoHeight);
+              video.removeEventListener('loadeddata', onLoadedData);
+              video.removeEventListener('error', onError);
+              resolve(void 0);
+            };
+            
+            const onError = (error: any) => {
+              console.error('Video loading error:', error);
+              video.removeEventListener('loadeddata', onLoadedData);
+              video.removeEventListener('error', onError);
+              reject(error);
+            };
+            
+            video.addEventListener('loadeddata', onLoadedData);
+            video.addEventListener('error', onError);
+            
+            // Start playing the video
+            video.play().catch(console.error);
           }
         });
       }

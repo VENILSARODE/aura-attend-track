@@ -320,9 +320,10 @@ class FaceVerificationService {
       return detectedFaces;
     }
 
-    const SIMILARITY_THRESHOLD = 0.25; // Lower threshold for easier matching
+    const SIMILARITY_THRESHOLD = 0.15; // Very low threshold for easier matching
 
     console.log(`Face Verification: Processing ${detectedFaces.length} detected faces against ${storedPersons.length} stored persons`);
+    console.log('Available students for matching:', storedPersons.map(p => ({ name: p.name, id: p.id, hasImage: !!p.image })));
 
     const verifiedFaces = await Promise.all(
       detectedFaces.map(async (face, faceIndex) => {
@@ -340,11 +341,11 @@ class FaceVerificationService {
           if (!person.faceEmbedding && person.image) {
             // Generate embedding for stored person from their photo
             try {
-              console.log(`Generating embedding from photo for ${person.name}`);
+              console.log(`Generating embedding from photo for ${person.name}...`);
               person.faceEmbedding = await this.generateFaceEmbedding(person.image);
-              console.log(`Generated photo embedding for ${person.name} (length: ${person.faceEmbedding.length})`);
+              console.log(`✓ Generated photo embedding for ${person.name} (length: ${person.faceEmbedding.length})`);
             } catch (error) {
-              console.warn('Failed to generate embedding for person:', person.name, error);
+              console.warn(`✗ Failed to generate embedding for ${person.name}:`, error);
               person.faceEmbedding = this.getFallbackEmbedding();
             }
           } else if (!person.faceEmbedding) {
@@ -354,17 +355,18 @@ class FaceVerificationService {
           }
 
           const similarity = this.calculateSimilarity(faceEmbedding, person.faceEmbedding);
-          console.log(`Similarity between face ${faceIndex + 1} and ${person.name}: ${(similarity * 100).toFixed(2)}%`);
+          console.log(`→ ${person.name}: ${(similarity * 100).toFixed(2)}% similarity`);
           
           if (similarity > bestSimilarity && similarity > SIMILARITY_THRESHOLD) {
             bestMatch = person;
             bestSimilarity = similarity;
+            console.log(`  ★ New best match: ${person.name} (${(similarity * 100).toFixed(2)}%)`);
           }
         }
 
         // Add verification result
         if (bestMatch) {
-          console.log(`Face ${faceIndex + 1}: Best match is ${bestMatch.name} with ${(bestSimilarity * 100).toFixed(2)}% similarity`);
+          console.log(`🎯 FINAL MATCH for face ${faceIndex + 1}: ${bestMatch.name} with ${(bestSimilarity * 100).toFixed(2)}% confidence`);
           face.verifiedPerson = {
             name: bestMatch.name,
             id: bestMatch.id,
@@ -372,7 +374,7 @@ class FaceVerificationService {
             confidence: bestSimilarity
           };
         } else {
-          console.log(`Face ${faceIndex + 1}: No match found above threshold (${(SIMILARITY_THRESHOLD * 100).toFixed(1)}%)`);
+          console.log(`❌ NO MATCH found for face ${faceIndex + 1} above threshold (${(SIMILARITY_THRESHOLD * 100).toFixed(1)}%)`);
         }
 
         return face;
