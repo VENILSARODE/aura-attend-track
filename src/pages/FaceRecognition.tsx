@@ -198,47 +198,63 @@ const FaceRecognition = () => {
 
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+      console.log("Requesting camera access...");
+      setError("");
+      
+      const constraints = {
         video: { 
           facingMode: "user",
-          width: { ideal: 640, min: 480 },
-          height: { ideal: 480, min: 360 }
-        } 
-      });
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 }
+        }
+      };
+      
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log("Camera stream obtained:", mediaStream);
+      
       setStream(mediaStream);
       
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+        const video = videoRef.current;
+        video.srcObject = mediaStream;
         
-        await new Promise((resolve, reject) => {
-          if (videoRef.current) {
-            const video = videoRef.current;
-            
-            const onLoadedData = () => {
-              video.removeEventListener('loadeddata', onLoadedData);
-              video.removeEventListener('error', onError);
+        // Wait for video to be ready and start playing
+        video.onloadedmetadata = () => {
+          console.log("Video metadata loaded, dimensions:", video.videoWidth, "x", video.videoHeight);
+          video.play()
+            .then(() => {
+              console.log("Video is now playing");
               setFaceDetected(true);
-              resolve(void 0);
-            };
-            
-            const onError = (error: any) => {
-              video.removeEventListener('loadeddata', onLoadedData);
-              video.removeEventListener('error', onError);
-              reject(error);
-            };
-            
-            video.addEventListener('loadeddata', onLoadedData);
-            video.addEventListener('error', onError);
-            video.play().catch(console.error);
-          }
-        });
+            })
+            .catch(err => {
+              console.error("Error playing video:", err);
+              setError("Failed to start video playback");
+            });
+        };
+        
+        video.onerror = (err) => {
+          console.error("Video error:", err);
+          setError("Video playback error");
+        };
       }
     } catch (err) {
-      console.error("Error accessing camera:", err);
-      setError("Camera access failed");
+      console.error("Camera access error:", err);
+      let errorMessage = "Camera access failed";
+      
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError') {
+          errorMessage = "Camera permission denied. Please allow camera access.";
+        } else if (err.name === 'NotFoundError') {
+          errorMessage = "No camera found on this device.";
+        } else if (err.name === 'NotReadableError') {
+          errorMessage = "Camera is already in use by another application.";
+        }
+      }
+      
+      setError(errorMessage);
       toast({
         title: "Camera Error",
-        description: "Could not access camera. Please check permissions.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -350,7 +366,8 @@ const FaceRecognition = () => {
                   ref={videoRef} 
                   autoPlay 
                   muted 
-                  playsInline 
+                  playsInline
+                  controls={false}
                   className="w-full h-full object-cover"
                   style={{ 
                     display: 'block',
