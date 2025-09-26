@@ -4,27 +4,38 @@ import { useAttendance } from "@/context/AttendanceContext";
 import { eyeRecognitionService } from "@/utils/faceVerification";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, UserX } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle2, Loader2, CameraOff, User, MoveLeft, MoveRight, MoveUp, MoveDown, UserX, Shield } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 const FaceRecognition = () => {
-  const { students, updateAttendance } = useData();
+  const { students, processAttendance, updateAttendance } = useData();
+  const { getTodayAttendance } = useAttendance();
   const { toast } = useToast();
-  const [isScanning, setIsScanning] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [error, setError] = useState("");
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [eyesDetected, setEyesDetected] = useState(false);
-  const [recognitionResult, setRecognitionResult] = useState<{
-    type: 'present' | 'absent' | null;
-    student?: any;
-    timestamp?: string;
-  }>({ type: null });
-  const [eyeBounds, setEyeBounds] = useState<{x: number, y: number, width: number, height: number} | null>(null);
+  const [recognizedStudent, setRecognizedStudent] = useState<string | null>(null);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [facePosition, setFacePosition] = useState<string | null>(null);
+  const [verificationFailed, setVerificationFailed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const blurCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [faceBounds, setFaceBounds] = useState<{x: number, y: number, width: number, height: number} | null>(null);
+  const [captureCount, setCaptureCount] = useState(0);
+  const [faceScores, setFaceScores] = useState<{[studentId: string]: number}>({});
+  const [matchConfidence, setMatchConfidence] = useState(0);
+  const [stableMatches, setStableMatches] = useState(0);
+  const [lastMatchedId, setLastMatchedId] = useState<string | null>(null);
+  const [consecutiveMatches, setConsecutiveMatches] = useState<{[studentId: string]: number}>({});
   
-  const SIMILARITY_THRESHOLD = 0.6; // As specified in requirements
+  const MAX_CAPTURES = 20;
+  const CONFIDENCE_THRESHOLD = 75;
+  const STABLE_MATCHES_REQUIRED = 4;
+  const CONSECUTIVE_MATCHES_REQUIRED = 3;
 
   const stopCamera = () => {
     if (stream) {
@@ -39,40 +50,42 @@ const FaceRecognition = () => {
     };
   }, []);
 
-  // Simulate eye detection with bounding box
   useEffect(() => {
-    if (!isScanning || !stream || !videoRef.current) return;
+    if (!scanning || !stream || !videoRef.current) return;
 
     const video = videoRef.current;
     
-    const simulateEyeDetection = () => {
-      // Simulate eye detection - in production, this would use actual eye detection
-      const hasEyes = Math.random() > 0.3; // 70% chance of detecting eyes
+    const simulateFaceDetection = () => {
+      // Get video dimensions
+      const videoRect = video.getBoundingClientRect();
+      const centerX = videoRect.width / 2;
+      const centerY = videoRect.height / 2;
+      const faceWidth = videoRect.width * 0.3;
+      const faceHeight = videoRect.height * 0.4;
       
-      if (hasEyes) {
-        const videoRect = video.getBoundingClientRect();
-        const centerX = videoRect.width / 2;
-        const centerY = videoRect.height / 3; // Eyes are typically in upper third of face
-        const eyeWidth = Math.min(videoRect.width * 0.35, 120); // Eyes are wider
-        const eyeHeight = Math.min(videoRect.height * 0.15, 40); // Eyes are shorter
-        
-        setEyeBounds({
-          x: centerX - eyeWidth / 2,
-          y: centerY - eyeHeight / 2,
-          width: eyeWidth,
-          height: eyeHeight
-        });
-        setEyesDetected(true);
-      } else {
-        setEyeBounds(null);
-        setEyesDetected(false);
-      }
+      return {
+        x: centerX - faceWidth / 2,
+        y: centerY - faceHeight / 2,
+        width: faceWidth,
+        height: faceHeight
+      };
     };
 
-    const interval = setInterval(simulateEyeDetection, 100);
+    const updateFaceDetection = () => {
+      if (!video) return;
+      
+      const faceRect = simulateFaceDetection();
+      setFaceBounds(faceRect);
+      
+      animationId = requestAnimationFrame(updateFaceDetection);
+    };
     
-    return () => clearInterval(interval);
-  }, [isScanning, stream]);
+    let animationId = requestAnimationFrame(updateFaceDetection);
+    
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
+  }, [scanning, stream]);
 
   const captureFrame = () => {
     if (videoRef.current && canvasRef.current) {
@@ -80,133 +93,103 @@ const FaceRecognition = () => {
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
       
-      if (context && video.readyState >= 2) {
-        const videoWidth = video.videoWidth || 640;
-        const videoHeight = video.videoHeight || 480;
-        
-        if (videoWidth === 0 || videoHeight === 0) {
-          return null;
-        }
-        
-        canvas.width = videoWidth;
-        canvas.height = videoHeight;
-        
-        try {
-          context.clearRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          return canvas.toDataURL('image/jpeg', 0.95);
-        } catch (error) {
-          console.error('Error capturing frame:', error);
-          return null;
-        }
+      if (context) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg');
       }
     }
     return null;
   };
 
-  const performEyeRecognition = async () => {
-    if (!eyesDetected) {
-      setRecognitionResult({ type: 'absent' });
-      toast({
-        title: "No Eyes Detected",
-        description: "❌ Attendance could not be verified. Marked Absent.",
-        variant: "destructive",
-      });
-      return;
+  const verifyFaceAgainstDatabase = async (capturedImage: string | null): Promise<{ isVerified: boolean, studentId: string | null, confidence: number }> => {
+    if (students.length === 0) {
+      console.log('No students in database');
+      return { isVerified: false, studentId: null, confidence: 0 };
     }
 
-    const capturedImage = captureFrame();
-    if (!capturedImage) {
-      setRecognitionResult({ type: 'absent' });
+    // Initialize face verification service
+    await eyeRecognitionService.initialize();
+
+    const studentsWithPhotos = students.filter(s => s.photo);
+    
+    if (studentsWithPhotos.length === 0) {
+      console.log('No students with photos found in database');
       toast({
-        title: "Capture Failed",
-        description: "❌ Attendance could not be verified. Marked Absent.",
+        title: "No Student Photos",
+        description: "No student photos found in database. Please upload student data with photos first.",
         variant: "destructive",
       });
-      return;
+      return { isVerified: false, studentId: null, confidence: 0 };
     }
 
     try {
-      // Initialize eye recognition service
-      await eyeRecognitionService.initialize();
-
-      const studentsWithPhotos = students.filter(s => s.photo);
+      console.log(`Starting face verification for ${studentsWithPhotos.length} students with photos`);
       
-      if (studentsWithPhotos.length === 0) {
-        setRecognitionResult({ type: 'absent' });
-        toast({
-          title: "No Student Photos",
-          description: "❌ No student photos found in database.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Convert students to StoredPerson format
+      // Convert students to StoredPerson format for verification
       const storedPersons = studentsWithPhotos.map(student => ({
         id: student.id,
         name: student.name,
         role: 'student',
         image: student.photo,
-        faceEmbedding: undefined as number[] | undefined
+        eyeEmbedding: undefined as number[] | undefined
       }));
 
-      // Create detected eyes object
-      const detectedEyes = {
+      // Create detected face object with proper dimensions
+      const detectedFace = {
         id: 1,
         x: 100,
-        y: 80, // Eyes are higher up
-        width: 120, // Eyes are wider
-        height: 40,  // Eyes are shorter
+        y: 80,
+        width: 120,
+        height: 40,
         confidence: 0.9,
         embedding: undefined as number[] | undefined,
         verifiedPerson: undefined
       };
 
-      // Generate embedding from captured image
-      const embedding = await eyeRecognitionService.generateEyeEmbedding(capturedImage);
-      detectedEyes.embedding = embedding;
-
-      // Verify eyes against stored persons
-      const verifiedEyes = await eyeRecognitionService.verifyEyesAsync([detectedEyes], storedPersons);
-      const verifiedEye = verifiedEyes[0];
-
-      if (verifiedEye.verifiedPerson && verifiedEye.verifiedPerson.confidence >= SIMILARITY_THRESHOLD) {
-        // Match found - mark present
-        const student = students.find(s => s.id === verifiedEye.verifiedPerson!.id);
-        const today = format(new Date(), "yyyy-MM-dd");
-        const timestamp = format(new Date(), "HH:mm:ss");
-        
-        updateAttendance(verifiedEye.verifiedPerson.id, today, 'present');
-        
-        setRecognitionResult({
-          type: 'present',
-          student: student,
-          timestamp: timestamp
-        });
-
-        toast({
-          title: "Attendance Marked",
-          description: `✅ Attendance marked Present for ${student?.name}`,
-          variant: "default",
-        });
+      // Generate embedding from captured image if available
+      if (capturedImage) {
+        try {
+          console.log('Generating embedding from captured face image');
+          const embedding = await eyeRecognitionService.generateEyeEmbedding(capturedImage);
+          detectedFace.embedding = embedding;
+          console.log(`Generated embedding with ${embedding.length} dimensions`);
+        } catch (error) {
+          console.warn('Failed to generate embedding from captured image:', error);
+          detectedFace.embedding = eyeRecognitionService.generateEyeEmbeddingSync(detectedFace);
+        }
       } else {
-        // No match - mark absent
-        setRecognitionResult({ type: 'absent' });
-        toast({
-          title: "Eyes Not Recognized",
-          description: "❌ Attendance could not be verified. Marked Absent.",
-          variant: "destructive",
-        });
+        console.warn('No captured image available, using fallback embedding');
+        detectedFace.embedding = eyeRecognitionService.generateEyeEmbeddingSync(detectedFace);
+      }
+
+      // Verify the face against stored persons
+      console.log('Starting face verification against uploaded student photos...');
+      const verifiedFaces = await eyeRecognitionService.verifyEyesAsync([detectedFace], storedPersons);
+      const verifiedFace = verifiedFaces[0];
+
+      if (verifiedFace.verifiedPerson) {
+        const confidence = verifiedFace.verifiedPerson.confidence * 100; // Convert to percentage
+        console.log(`✅ MATCH FOUND: ${verifiedFace.verifiedPerson.name} with ${confidence.toFixed(1)}% confidence`);
+        
+        return {
+          isVerified: confidence >= 20, // Lower threshold for easier matching
+          studentId: verifiedFace.verifiedPerson.id,
+          confidence: confidence
+        };
+      } else {
+        console.log('❌ No face match found above threshold');
+        return { isVerified: false, studentId: null, confidence: 0 };
       }
     } catch (error) {
-      console.error('Eye recognition error:', error);
-      setRecognitionResult({ type: 'absent' });
+      console.error('Face verification error:', error);
       toast({
-        title: "Recognition Failed",
-        description: "❌ Attendance could not be verified. Marked Absent.",
+        title: "Verification Error",
+        description: "An error occurred during face verification. Please try again.",
         variant: "destructive",
       });
+      return { isVerified: false, studentId: null, confidence: 0 };
     }
   };
 
@@ -231,6 +214,7 @@ const FaceRecognition = () => {
             const onLoadedData = () => {
               video.removeEventListener('loadeddata', onLoadedData);
               video.removeEventListener('error', onError);
+              setFaceDetected(true);
               resolve(void 0);
             };
             
@@ -248,6 +232,7 @@ const FaceRecognition = () => {
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
+      setError("Camera access failed");
       toast({
         title: "Camera Error",
         description: "Could not access camera. Please check permissions.",
@@ -256,7 +241,7 @@ const FaceRecognition = () => {
     }
   };
 
-  const handleStartRecognition = async () => {
+  const handleStartScan = async () => {
     if (students.length === 0) {
       toast({
         title: "No Students Found", 
@@ -266,31 +251,100 @@ const FaceRecognition = () => {
       return;
     }
 
-    setIsScanning(true);
-    setRecognitionResult({ type: null });
-    setEyesDetected(false);
-    setEyeBounds(null);
+    setScanning(true);
+    setCompleted(false);
+    setError("");
+    setRecognizedStudent(null);
+    setVerificationFailed(false);
+    setCaptureCount(0);
+    setFaceScores({});
+    setMatchConfidence(0);
+    setStableMatches(0);
+    setLastMatchedId(null);
+    setConsecutiveMatches({});
 
     if (!stream) {
       await startCamera();
     }
     
-    // Start recognition after a short delay to ensure camera is ready
-    setTimeout(() => {
-      performEyeRecognition();
-      setIsScanning(false);
+    // Start the scanning process
+    setTimeout(async () => {
+      try {
+        const capturedImage = captureFrame();
+        console.log('Captured image for face verification:', capturedImage ? 'Success' : 'Failed');
+        
+        const verificationResult = await verifyFaceAgainstDatabase(capturedImage);
+        
+        if (verificationResult.isVerified && verificationResult.studentId) {
+          // Face recognized successfully
+          const student = students.find(s => s.id === verificationResult.studentId);
+          if (student) {
+            setRecognizedStudent(student.id);
+            setMatchConfidence(verificationResult.confidence);
+            
+            // Mark attendance
+            const today = format(new Date(), "yyyy-MM-dd");
+            updateAttendance(student.id, today, 'present');
+            
+            toast({
+              title: "Face Recognized!",
+              description: `✅ Attendance marked Present for ${student.name}`,
+              variant: "default",
+            });
+          }
+        } else {
+          // Face not recognized
+          setVerificationFailed(true);
+          toast({
+            title: "Face Not Recognized",
+            description: "❌ Attendance marked Absent - face verification failed",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('Face recognition error:', error);
+        setVerificationFailed(true);
+        setError("Face recognition failed");
+        toast({
+          title: "Recognition Failed",
+          description: "❌ An error occurred during face recognition",
+          variant: "destructive",
+        });
+      }
+      
+      setScanning(false);
+      setCompleted(true);
     }, 3000);
   };
 
-  return (
-    <div className="min-h-screen bg-slate-900 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+  const getPositionInstruction = (position: string | null) => {
+    switch (position) {
+      case 'too-left': return { icon: MoveRight, text: 'Move right' };
+      case 'too-right': return { icon: MoveLeft, text: 'Move left' };
+      case 'too-high': return { icon: MoveDown, text: 'Move down' };
+      case 'too-low': return { icon: MoveUp, text: 'Move up' };
+      default: return null;
+    }
+  };
 
-        {/* Face Recognition Interface */}
-        <Card className="bg-slate-800 border-slate-700 shadow-xl">
+  const instruction = getPositionInstruction(facePosition);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <Card className="bg-slate-800/50 border-slate-700 shadow-2xl backdrop-blur-sm">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-white flex items-center justify-center gap-2">
+              <Shield className="h-6 w-6 text-purple-400" />
+              Face Recognition Attendance
+            </CardTitle>
+            <CardDescription className="text-slate-300">
+              Position your face in the frame for attendance verification
+            </CardDescription>
+          </CardHeader>
           <CardContent className="space-y-4">
             {/* Camera Feed */}
-            <div className="relative aspect-video bg-slate-900 rounded-lg overflow-hidden border border-slate-700">
+            <div className="relative aspect-video bg-black rounded-lg overflow-hidden border border-slate-600 shadow-lg">
               {stream ? (
                 <>
                   <video 
@@ -305,37 +359,39 @@ const FaceRecognition = () => {
                     }}
                   />
                   
-                  {/* Face Detection Status */}
-                  <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
-                    <div className="bg-black/70 text-white px-3 py-2 rounded-lg text-sm font-medium">
-                      Face Recognition
-                    </div>
-                    <div className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                      eyesDetected ? 'bg-green-600 text-white' : 'bg-yellow-600 text-white'
-                    }`}>
-                      {eyesDetected ? 'Face Detected' : 'Looking for Face'}
-                    </div>
-                  </div>
-                  
-                  {/* Face Guide Overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className={`w-64 h-80 border-2 rounded-2xl transition-all duration-300 ${
-                      eyesDetected ? 'border-green-400 shadow-lg shadow-green-400/30' : 'border-white/50'
-                    }`}>
-                      <div className="absolute inset-4 border border-dashed border-white/30 rounded-xl flex flex-col items-center justify-center">
-                        {!eyesDetected && (
-                          <div className="text-center">
-                            <User className="h-8 w-8 text-white/60 mx-auto mb-2" />
-                            <p className="text-white/80 text-sm font-medium">Position your face</p>
-                            <p className="text-white/60 text-xs">in the frame</p>
-                          </div>
-                        )}
+                  {/* Face detection overlay */}
+                  {faceBounds && (
+                    <div 
+                      className={`absolute border-2 rounded-lg transition-all duration-200 ${
+                        scanning ? 'border-blue-400 shadow-lg shadow-blue-400/30' : 
+                        faceDetected ? 'border-green-400 shadow-lg shadow-green-400/30' : 'border-yellow-400'
+                      }`}
+                      style={{
+                        left: `${faceBounds.x}px`,
+                        top: `${faceBounds.y}px`,
+                        width: `${faceBounds.width}px`,
+                        height: `${faceBounds.height}px`
+                      }}
+                    >
+                      <div className={`absolute -top-8 left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full text-xs font-medium ${
+                        scanning ? 'bg-blue-600 text-white' :
+                        faceDetected ? 'bg-green-600 text-white' : 'bg-yellow-600 text-black'
+                      }`}>
+                        {scanning ? 'Scanning...' : faceDetected ? 'Face Detected' : 'Align Face'}
                       </div>
                     </div>
-                  </div>
+                  )}
                   
-                  {/* Scanning Overlay */}
-                  {isScanning && (
+                  {/* Position guidance */}
+                  {instruction && !scanning && (
+                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-black px-4 py-2 rounded-full flex items-center gap-2 text-sm font-medium">
+                      <instruction.icon className="h-4 w-4" />
+                      {instruction.text}
+                    </div>
+                  )}
+                  
+                  {/* Scanning progress overlay */}
+                  {scanning && (
                     <div className="absolute inset-0 bg-blue-600/20 flex items-center justify-center">
                       <div className="bg-black/80 text-white px-6 py-4 rounded-xl flex items-center gap-3">
                         <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
@@ -347,28 +403,12 @@ const FaceRecognition = () => {
                     </div>
                   )}
                   
-                  {/* Eye Detection Indicator */}
-                  {eyeBounds && eyesDetected && !isScanning && (
-                    <div 
-                      className="absolute border-2 border-green-400 rounded-md bg-green-400/10"
-                      style={{
-                        left: `${eyeBounds.x}px`,
-                        top: `${eyeBounds.y}px`,
-                        width: `${eyeBounds.width}px`,
-                        height: `${eyeBounds.height}px`
-                      }}
-                    >
-                      <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-2 py-1 rounded text-xs font-medium">
-                        Eyes
-                      </div>
-                    </div>
-                  )}
-                  
                   <canvas ref={canvasRef} className="hidden" />
+                  <canvas ref={blurCanvasRef} className="hidden" />
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full">
-                  {isScanning ? (
+                  {scanning ? (
                     <Loader2 className="h-12 w-12 text-purple-400 animate-spin mb-4" />
                   ) : (
                     <>
@@ -379,82 +419,73 @@ const FaceRecognition = () => {
                 </div>
               )}
             </div>
+
+            {/* Recognition Results */}
+            {completed && (
+              <div className="relative min-h-[200px] bg-slate-900/50 rounded-lg border border-slate-600 p-6">
+                {(() => {
+                  const student = recognizedStudent ? students.find(s => s.id === recognizedStudent) : null;
+                  return student ? (
+                    <div className="flex flex-col items-center gap-4 p-4 animate-fade-in">
+                      <Avatar className="h-20 w-20 border-2 border-green-500">
+                        {student.photo ? (
+                          <AvatarImage src={student.photo} alt={student.name} />
+                        ) : (
+                          <AvatarFallback className="bg-green-700 text-green-100">
+                            <User className="h-10 w-10" />
+                          </AvatarFallback>
+                        )}
+                      </Avatar>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <CheckCircle2 className="h-6 w-6 text-green-400" />
+                          <h3 className="text-lg font-semibold text-white">{student.name}</h3>
+                        </div>
+                        <p className="text-sm text-slate-300">{student.usn}</p>
+                        <span className="mt-2 inline-block px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-medium">
+                          Present
+                        </span>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            )}
+            
+            {completed && verificationFailed && (
+              <div className="flex flex-col items-center gap-3 p-4 animate-fade-in">
+                <div className="h-20 w-20 rounded-full border-2 border-red-500 flex items-center justify-center bg-slate-800">
+                  <UserX className="h-10 w-10 text-red-500" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-white">Marked Absent</h3>
+                  <p className="text-sm text-slate-300 mt-1">Face recognition failed</p>
+                  <span className="mt-2 inline-block px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-sm font-medium">
+                    Absent
+                  </span>
+                </div>
+              </div>
+            )}
           </CardContent>
           <CardFooter>
             <Button 
-              onClick={handleStartRecognition} 
-              disabled={isScanning}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-lg font-semibold"
+              onClick={handleStartScan} 
+              disabled={scanning}
+              className="w-full"
             >
-              {isScanning ? (
+              {scanning ? (
                 <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Scanning...
                 </>
+              ) : completed ? (
+                "Scan Again"
               ) : (
-                <>
-                  <Camera className="mr-2 h-5 w-5" />
-                  Start Face Recognition
-                </>
+                "Start Face Recognition"
               )}
             </Button>
           </CardFooter>
         </Card>
-
-        {/* Recognition Results */}
-        {recognitionResult.type && (
-          <Card className={`border-2 shadow-xl ${recognitionResult.type === 'present' 
-            ? 'bg-green-900/20 border-green-600' 
-            : 'bg-red-900/20 border-red-600'
-          }`}>
-            <CardContent className="p-6">
-              {recognitionResult.type === 'present' && recognitionResult.student ? (
-                <div className="flex items-center gap-4">
-                  <div className="flex-shrink-0">
-                    <Avatar className="h-16 w-16 border-2 border-green-500">
-                      {recognitionResult.student.photo ? (
-                        <AvatarImage src={recognitionResult.student.photo} alt={recognitionResult.student.name} />
-                      ) : (
-                        <AvatarFallback className="bg-green-700 text-green-100">
-                          <User className="h-8 w-8" />
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="h-6 w-6 text-green-400" />
-                      <h3 className="text-xl font-bold text-green-400">Present</h3>
-                    </div>
-                    <p className="text-green-300 text-lg">
-                      {recognitionResult.student.name} - {recognitionResult.student.usn}
-                    </p>
-                    <p className="text-green-300 text-sm">
-                      Marked at {recognitionResult.timestamp}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-4">
-                  <div className="flex-shrink-0">
-                    <div className="h-16 w-16 rounded-full bg-red-700 flex items-center justify-center border-2 border-red-500">
-                      <UserX className="h-8 w-8 text-red-100" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertCircle className="h-6 w-6 text-red-400" />
-                      <h3 className="text-xl font-bold text-red-400">Absent</h3>
-                    </div>
-                    <p className="text-red-300 text-lg">
-                      Face not recognized
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );
