@@ -330,162 +330,182 @@ const FaceRecognition = () => {
   const instruction = getPositionInstruction(facePosition);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <Card className="bg-slate-800/50 border-slate-700 shadow-2xl backdrop-blur-sm">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-              <Shield className="h-6 w-6 text-purple-400" />
-              Face Recognition Attendance
-            </CardTitle>
-            <CardDescription className="text-slate-300">
-              Position your face in the frame for attendance verification
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Camera Feed */}
-            <div className="relative aspect-video bg-black rounded-lg overflow-hidden border border-slate-600 shadow-lg">
-              {stream ? (
-                <>
-                  <video 
-                    ref={videoRef} 
-                    autoPlay 
-                    muted 
-                    playsInline 
-                    className="w-full h-full object-cover"
-                    style={{ 
-                      display: 'block',
-                      background: '#000'
-                    }}
-                  />
-                  
-                  {/* Face detection overlay */}
-                  {faceBounds && (
-                    <div 
-                      className={`absolute border-2 rounded-lg transition-all duration-200 ${
-                        scanning ? 'border-blue-400 shadow-lg shadow-blue-400/30' : 
-                        faceDetected ? 'border-green-400 shadow-lg shadow-green-400/30' : 'border-yellow-400'
-                      }`}
-                      style={{
-                        left: `${faceBounds.x}px`,
-                        top: `${faceBounds.y}px`,
-                        width: `${faceBounds.width}px`,
-                        height: `${faceBounds.height}px`
-                      }}
-                    >
-                      <div className={`absolute -top-8 left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full text-xs font-medium ${
-                        scanning ? 'bg-blue-600 text-white' :
-                        faceDetected ? 'bg-green-600 text-white' : 'bg-yellow-600 text-black'
-                      }`}>
-                        {scanning ? 'Scanning...' : faceDetected ? 'Face Detected' : 'Align Face'}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Position guidance */}
-                  {instruction && !scanning && (
-                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-black px-4 py-2 rounded-full flex items-center gap-2 text-sm font-medium">
-                      <instruction.icon className="h-4 w-4" />
-                      {instruction.text}
-                    </div>
-                  )}
-                  
-                  {/* Scanning progress overlay */}
-                  {scanning && (
-                    <div className="absolute inset-0 bg-blue-600/20 flex items-center justify-center">
-                      <div className="bg-black/80 text-white px-6 py-4 rounded-xl flex items-center gap-3">
-                        <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
-                        <div>
-                          <p className="font-semibold">Scanning Face...</p>
-                          <p className="text-sm text-gray-300">Please hold still</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <canvas ref={canvasRef} className="hidden" />
-                  <canvas ref={blurCanvasRef} className="hidden" />
-                </>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full">
-                  {scanning ? (
-                    <Loader2 className="h-12 w-12 text-purple-400 animate-spin mb-4" />
-                  ) : (
-                    <>
-                      <CameraOff className="h-16 w-16 text-slate-600 mb-4" />
-                      <p className="text-slate-400">Camera not started</p>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 p-4">
+      <div className="max-w-md mx-auto space-y-6">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-bold text-white">Face Recognition</h1>
+          <p className="text-slate-400 text-sm">Position your face in the frame</p>
+        </div>
 
-            {/* Recognition Results */}
-            {completed && (
-              <div className="relative min-h-[200px] bg-slate-900/50 rounded-lg border border-slate-600 p-6">
-                {(() => {
-                  const student = recognizedStudent ? students.find(s => s.id === recognizedStudent) : null;
-                  return student ? (
-                    <div className="flex flex-col items-center gap-4 p-4 animate-fade-in">
-                      <Avatar className="h-20 w-20 border-2 border-green-500">
-                        {student.photo ? (
-                          <AvatarImage src={student.photo} alt={student.name} />
-                        ) : (
-                          <AvatarFallback className="bg-green-700 text-green-100">
-                            <User className="h-10 w-10" />
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
-                      <div className="text-center">
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                          <CheckCircle2 className="h-6 w-6 text-green-400" />
-                          <h3 className="text-lg font-semibold text-white">{student.name}</h3>
-                        </div>
-                        <p className="text-sm text-slate-300">{student.usn}</p>
-                        <span className="mt-2 inline-block px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-medium">
-                          Present
-                        </span>
+        {/* Camera Feed */}
+        <div className="relative bg-black rounded-3xl overflow-hidden border border-slate-700 shadow-2xl">
+          <div className="aspect-[3/4] relative">
+            {stream ? (
+              <>
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  muted 
+                  playsInline 
+                  className="w-full h-full object-cover"
+                  style={{ 
+                    display: 'block',
+                    background: '#000',
+                    transform: 'scaleX(-1)' // Mirror the display for selfie view
+                  }}
+                />
+                
+                {/* Face detection overlay */}
+                {faceBounds && (
+                  <div 
+                    className={`absolute border-2 rounded-xl transition-all duration-300 ${
+                      scanning ? 'border-blue-400 shadow-lg shadow-blue-400/30' : 
+                      faceDetected ? 'border-green-400 shadow-lg shadow-green-400/30' : 'border-yellow-400'
+                    }`}
+                    style={{
+                      // Mirror the position for display overlay
+                      right: `${faceBounds.x}px`,
+                      top: `${faceBounds.y}px`,
+                      width: `${faceBounds.width}px`,
+                      height: `${faceBounds.height}px`
+                    }}
+                  >
+                    <div className={`absolute -top-8 left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full text-xs font-medium ${
+                      scanning ? 'bg-blue-600 text-white' :
+                      faceDetected ? 'bg-green-600 text-white' : 'bg-yellow-600 text-black'
+                    }`}>
+                      {scanning ? 'Scanning...' : faceDetected ? 'Face Detected' : 'Position Face'}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Scanning progress overlay */}
+                {scanning && (
+                  <div className="absolute inset-0 bg-blue-600/20 flex items-center justify-center">
+                    <div className="bg-black/90 text-white px-6 py-4 rounded-2xl flex items-center gap-3">
+                      <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
+                      <div>
+                        <p className="font-semibold">Scanning Face...</p>
+                        <p className="text-sm text-slate-300">Hold still</p>
                       </div>
                     </div>
-                  ) : null;
-                })()}
+                  </div>
+                )}
+                
+                <canvas ref={canvasRef} className="hidden" />
+                <canvas ref={blurCanvasRef} className="hidden" />
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full">
+                <Camera className="h-16 w-16 text-slate-600 mb-4" />
+                <p className="text-slate-400 text-sm">Tap to start camera</p>
               </div>
             )}
-            
-            {completed && verificationFailed && (
-              <div className="flex flex-col items-center gap-3 p-4 animate-fade-in">
-                <div className="h-20 w-20 rounded-full border-2 border-red-500 flex items-center justify-center bg-slate-800">
-                  <UserX className="h-10 w-10 text-red-500" />
-                </div>
-                <div className="text-center">
-                  <h3 className="text-lg font-semibold text-white">Marked Absent</h3>
-                  <p className="text-sm text-slate-300 mt-1">Face recognition failed</p>
-                  <span className="mt-2 inline-block px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-sm font-medium">
-                    Absent
-                  </span>
-                </div>
-              </div>
+          </div>
+        </div>
+
+        {/* Scan Button */}
+        {!completed && (
+          <Button 
+            onClick={handleStartScan} 
+            disabled={scanning || !stream}
+            className="w-full h-14 rounded-2xl text-lg font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+          >
+            {scanning ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Scanning...
+              </>
+            ) : (
+              <>
+                <Camera className="mr-2 h-5 w-5" />
+                Scan Face
+              </>
             )}
-          </CardContent>
-          <CardFooter>
-            <Button 
-              onClick={handleStartScan} 
-              disabled={scanning}
-              className="w-full"
-            >
-              {scanning ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Scanning...
-                </>
-              ) : completed ? (
-                "Scan Again"
-              ) : (
-                "Start Face Recognition"
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
+          </Button>
+        )}
+
+        {/* Start Camera Button */}
+        {!stream && !scanning && (
+          <Button 
+            onClick={startCamera} 
+            className="w-full h-14 rounded-2xl text-lg font-semibold bg-slate-700 hover:bg-slate-600"
+          >
+            <Camera className="mr-2 h-5 w-5" />
+            Start Camera
+          </Button>
+        )}
+
+        {/* Recognition Results */}
+        {completed && (
+          <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700">
+            {(() => {
+              const student = recognizedStudent ? students.find(s => s.id === recognizedStudent) : null;
+              return student ? (
+                <div className="flex flex-col items-center gap-4">
+                  <Avatar className="h-16 w-16 border-2 border-green-500">
+                    {student.photo ? (
+                      <AvatarImage src={student.photo} alt={student.name} />
+                    ) : (
+                      <AvatarFallback className="bg-green-700 text-green-100">
+                        <User className="h-8 w-8" />
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div className="text-center space-y-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-green-400" />
+                      <h3 className="text-lg font-semibold text-white">{student.name}</h3>
+                    </div>
+                    <p className="text-sm text-slate-400">{student.usn}</p>
+                    <span className="inline-block px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-medium">
+                      Present
+                    </span>
+                    {matchConfidence > 0 && (
+                      <p className="text-xs text-slate-500">
+                        Confidence: {matchConfidence.toFixed(1)}%
+                      </p>
+                    )}
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      setCompleted(false);
+                      setRecognizedStudent(null);
+                      setVerificationFailed(false);
+                    }}
+                    className="w-full rounded-xl"
+                  >
+                    Scan Again
+                  </Button>
+                </div>
+              ) : verificationFailed ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="h-16 w-16 rounded-full border-2 border-red-500 flex items-center justify-center bg-slate-800">
+                    <UserX className="h-8 w-8 text-red-500" />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <h3 className="text-lg font-semibold text-white">Not Recognized</h3>
+                    <p className="text-sm text-slate-400">Face not found in database</p>
+                    <span className="inline-block px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-sm font-medium">
+                      Absent
+                    </span>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      setCompleted(false);
+                      setRecognizedStudent(null);
+                      setVerificationFailed(false);
+                    }}
+                    className="w-full rounded-xl"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              ) : null;
+            })()}
+          </div>
+        )}
       </div>
     </div>
   );
