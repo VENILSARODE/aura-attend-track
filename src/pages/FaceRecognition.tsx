@@ -45,6 +45,9 @@ const FaceRecognition = () => {
   };
 
   useEffect(() => {
+    // Auto-start camera when component mounts
+    startCamera();
+    
     return () => {
       stopCamera();
     };
@@ -398,8 +401,18 @@ const FaceRecognition = () => {
               </>
             ) : (
               <div className="flex flex-col items-center justify-center h-full">
-                <Camera className="h-16 w-16 text-slate-600 mb-4" />
-                <p className="text-slate-400 text-sm">Tap to start camera</p>
+                {error ? (
+                  <>
+                    <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
+                    <p className="text-red-400 text-sm text-center">{error}</p>
+                    <p className="text-slate-500 text-xs mt-2">Please allow camera access</p>
+                  </>
+                ) : (
+                  <>
+                    <Loader2 className="h-16 w-16 text-blue-400 animate-spin mb-4" />
+                    <p className="text-slate-400 text-sm">Starting camera...</p>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -426,14 +439,14 @@ const FaceRecognition = () => {
           </Button>
         )}
 
-        {/* Start Camera Button */}
-        {!stream && !scanning && (
+        {/* Start Camera Button - only show if camera failed to start */}
+        {!stream && !scanning && error && (
           <Button 
             onClick={startCamera} 
             className="w-full h-14 rounded-2xl text-lg font-semibold bg-slate-700 hover:bg-slate-600"
           >
             <Camera className="mr-2 h-5 w-5" />
-            Start Camera
+            Retry Camera Access
           </Button>
         )}
 
