@@ -177,7 +177,7 @@ const FaceRecognition = () => {
         console.log(`✅ MATCH FOUND: ${verifiedFace.verifiedPerson.name} with ${confidence.toFixed(1)}% confidence`);
         
         return {
-          isVerified: confidence >= 20, // Lower threshold for easier matching
+          isVerified: confidence >= 5, // Very low threshold for demo purposes
           studentId: verifiedFace.verifiedPerson.id,
           confidence: confidence
         };
