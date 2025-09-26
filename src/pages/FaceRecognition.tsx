@@ -304,121 +304,16 @@ const FaceRecognition = () => {
                       background: '#000'
                     }}
                   />
-                  
-                  {/* Top Status Bar */}
-                  <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
-                    <div className="bg-black/70 text-white px-3 py-2 rounded-lg text-sm font-medium">
-                      Face Recognition
-                    </div>
-                    <div className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                      eyesDetected ? 'bg-green-600 text-white' : 'bg-yellow-600 text-white'
-                    }`}>
-                      {eyesDetected ? 'Ready to Scan' : 'Position Your Face'}
-                    </div>
-                  </div>
-                  
-                  {/* Face Positioning Guide */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="relative">
-                      {/* Outer Circle Guide */}
-                      <div className={`w-80 h-80 border-4 rounded-full transition-all duration-300 ${
-                        eyesDetected ? 'border-green-400 shadow-lg shadow-green-400/30' : 'border-white/50'
-                      }`}>
-                        {/* Inner Face Area */}
-                        <div className="absolute inset-8 border-2 border-dashed border-white/30 rounded-full flex flex-col items-center justify-center">
-                          {!eyesDetected && (
-                            <div className="text-center">
-                              <Camera className="h-8 w-8 text-white/60 mx-auto mb-2" />
-                              <p className="text-white/80 text-sm font-medium">Look at the camera</p>
-                              <p className="text-white/60 text-xs">Keep your eyes visible</p>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Corner Guides */}
-                        <div className="absolute -top-2 -left-2 w-6 h-6 border-l-4 border-t-4 border-white/70"></div>
-                        <div className="absolute -top-2 -right-2 w-6 h-6 border-r-4 border-t-4 border-white/70"></div>
-                        <div className="absolute -bottom-2 -left-2 w-6 h-6 border-l-4 border-b-4 border-white/70"></div>
-                        <div className="absolute -bottom-2 -right-2 w-6 h-6 border-r-4 border-b-4 border-white/70"></div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Scanning Overlay */}
-                  {isScanning && (
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 to-purple-600/30 flex items-center justify-center animate-pulse">
-                      <div className="bg-black/80 text-white px-6 py-4 rounded-xl flex items-center gap-3 shadow-2xl">
-                        <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
-                        <div>
-                          <p className="font-semibold">Scanning in Progress</p>
-                          <p className="text-sm text-gray-300">Please hold still...</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Eye Detection Indicator */}
-                  {eyeBounds && eyesDetected && !isScanning && (
-                    <div 
-                      className="absolute border-3 border-green-400 rounded-lg bg-green-400/20 animate-pulse"
-                      style={{
-                        left: `${eyeBounds.x - 10}px`,
-                        top: `${eyeBounds.y - 10}px`,
-                        width: `${eyeBounds.width + 20}px`,
-                        height: `${eyeBounds.height + 20}px`
-                      }}
-                    >
-                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-                        ✓ Eyes Detected
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Bottom Instructions */}
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <div className="bg-black/70 text-white px-4 py-3 rounded-lg text-center">
-                      {!eyesDetected ? (
-                        <p className="text-sm">Move closer and look directly at the camera</p>
-                      ) : !isScanning ? (
-                        <p className="text-sm text-green-300">✓ Ready! Click "Start Face Scan" to mark attendance</p>
-                      ) : (
-                        <p className="text-sm text-blue-300">Processing... Please remain still</p>
-                      )}
-                    </div>
-                  </div>
-                  
                   <canvas ref={canvasRef} className="hidden" />
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full">
-                  {isScanning ? (
-                    <Loader2 className="h-12 w-12 text-purple-400 animate-spin mb-4" />
-                  ) : (
-                    <>
-                      <CameraOff className="h-16 w-16 text-slate-600 mb-4" />
-                      <p className="text-slate-400">Position your face for scanning</p>
-                    </>
-                  )}
+                  <CameraOff className="h-16 w-16 text-slate-600 mb-4" />
+                  <p className="text-slate-400">Camera not started</p>
                 </div>
               )}
             </div>
           </CardContent>
-          <CardFooter>
-            <Button 
-              onClick={handleStartRecognition} 
-              disabled={isScanning}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-lg font-semibold"
-            >
-              {isScanning ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Scanning...
-                </>
-              ) : (
-                "Start Face Scan"
-              )}
-            </Button>
-          </CardFooter>
         </Card>
 
         {/* Recognition Results */}
